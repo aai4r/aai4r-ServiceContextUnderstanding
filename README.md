@@ -4,7 +4,8 @@ This is an implementation of Service Context Understanding Module in [Cloud Robo
 The module has two main parts, an object detector and a food classifier.
 From the input image, object detector detects three categories, food, tableware, and drink.
 Food classifier crops the food area and classify it.
-The classification class depends on the dataset, [Food101](https://www.kaggle.com/dansbecker/food-101), [FoodX251](https://github.com/karansikka1/iFood_2019), and [Kfood](https://www.aihub.or.kr/).
+The classification class is 150 Korean foods [Kfood](https://www.aihub.or.kr/).
+We will provide the model trained from [Food101](https://www.kaggle.com/dansbecker/food-101), [FoodX251](https://github.com/karansikka1/iFood_2019), soon.
 
 ### Environment
 Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch).
