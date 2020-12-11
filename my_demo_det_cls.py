@@ -200,13 +200,15 @@ if __name__ == '__main__':
     args = parse_args()
 
     args.dataset = 'OpenImageSimpleCategory_test'
-    args.load_name = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
+    # args.load_name = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
+    args.load_name = 'output/faster_rcnn_1_7_9999.pth'
+
     args.net = 'resnet50'
     args.prep_type = 'caffe'
     args.num_save_images = -1
     args.shuffle_db = True
     # args.image_dir = 'images/OpenImageSimpleCategory'
-    args.image_dir = 'images/MyFoodImages_Kfood'
+    # args.image_dir = 'images/MyFoodImages_Kfood'
     # args.image_dir = 'images/MyFoodImages_Food101'
     args.cuda = True
     args.dataset_t = ''  # assign dummy naming
@@ -217,7 +219,7 @@ if __name__ == '__main__':
     # possible dbname='FoodX251', 'Food101', 'Kfood'
     # possible eval_crop_type='CenterCrop', 'TenCrop'
     food_classifier = FoodClassifier(net='senet154', dbname='Kfood', eval_crop_type='CenterCrop',
-                                     ck_file='output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar')
+                                     ck_file='output/model_best.pth.tar')
 
     print('Called with args:')
 
