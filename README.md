@@ -1,8 +1,10 @@
 # Service Context Understanding Module
 
-This is an implementation of Service Context Understanding Module Module in Cloud Robot Project.
-The module has two main parts, object detector and food classifier.
-The object detector is based on [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch) and the food classifier utilizes SENet. 
+This is an implementation of Service Context Understanding Module in [Cloud Robot Project](https://github.com/aai4r/aai4r-master).
+The module has two main parts, an object detector and a food classifier.
+From the input image, object detector detects three categories, food, tableware, and drink.
+Food classifier crops the food area and classify it.
+The classification class depends on the dataset, [Food101](https://www.kaggle.com/dansbecker/food-101), [FoodX251](https://github.com/karansikka1/iFood_2019), and [Kfood](https://www.aihub.or.kr/).
 
 ### Environment
 Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch).
@@ -24,33 +26,22 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
     sh make.sh 
     ```
 
-3. Make model folder and copy faster-rcnn.pytorch/cfgs folder to models/
+3. Make model folder
     ```bash
     cd ../.. && mkdir models
-    mkdir models/InstModel
-    cp -r faster-rcnn.pytorch/cfgs models
     ```
 
-4. Download [the model file](https://www.dropbox.com/s/be0isevd22eikqb/faster_rcnn_1_10_14657.pth?dl=0) from [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch) and move to models folder.
+4. Download all models(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to models folder.
    
    
 ### Run
-#### Object instance registration
+#### Webcamera demo
 
-1. Run the demo code.
+Run the demo code.
    ```bash
-   python demo.py
+   python my_demo_det_cls.py
    ```
-2. Press key 'r' and type two information, category_name and instance_name. 
-3. Show the object instance until predefined number of images are captured. 
    
-#### Object instance detection and recognition
-1. Run the demo code.
-   ```bash
-   python demo.py
-   ```
-2. Press key 'd' and see the result.
+#### CLOi demo
 
-### License
-
-See LICENSE.md
+The code will be updated.
