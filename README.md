@@ -27,12 +27,12 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
     sh make.sh 
     ```
 
-3. Make model folder
+3. Make output folder
     ```bash
-    cd ../.. && mkdir models
+    cd ../.. && mkdir output
     ```
 
-4. Download all models(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to models folder.
+4. Download all models(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
    
    
 ### Run
