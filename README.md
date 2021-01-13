@@ -27,9 +27,10 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
     sh make.sh 
     ```
 
-3. Make output folder
+3. Make output folder and copy all faster-rcnn files
     ```
     cd ../.. && mkdir output
+    cp faster-rcnn.pytorch/* .
     ```
 
 4. Download all weight files(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
