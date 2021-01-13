@@ -13,13 +13,13 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
 ### Installation
 
 1. Clone this repository.
-    ```bash
-    git clone https://github.com/yochin/aai4r-ServiceConetxtUnderstanding
-    cd aai4r-ServiceConetxtUnderstanding
+    ```
+    git clone https://github.com/aai4r/aai4r-ServiceContextUnderstanding
+    cd aai4r-ServiceContextUnderstanding
     ```
 
 2. Clone [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch) and install on faster-rcnn.pytorch folder.
-    ```bash
+    ```
     git clone https://github.com/jwyang/faster-rcnn.pytorch.git
     cd faster-rcnn.pytorch && mkdir data
     pip install -r requirements.txt
@@ -28,7 +28,7 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
     ```
 
 3. Make output folder
-    ```bash
+    ```
     cd ../.. && mkdir output
     ```
 
