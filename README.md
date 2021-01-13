@@ -38,16 +38,16 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
 ### Run
 #### Webcamera demo
 
-Run the demo code with the webcam number.
+Run the demo code with the webcam number (we used 0).
    ```bash
-   python my_demo_det_cls.py --webcam_num WEBCAM_NUMBER
+   python my_demo_det_cls.py --webcam_num 0
    ```
    
 #### Image demo
 
-Run the demo code with the path of the test image folder.
+Run the demo code with the sample images.
    ```bash
-   python my_demo_det_cls.py --image_dir PATH_TO_TEST_IMAGES
+   python my_demo_det_cls.py --image_dir sample_images
    ```
    
 #### CLOi demo

@@ -98,11 +98,9 @@ def parse_args():
     parser.add_argument('--anchors4', dest='anchors4', action='store_true')
     parser.add_argument('--ratios5', dest='ratios5', action='store_true')
 
-    # for SimCLR
     parser.add_argument('--prep_type', dest='prep_type', default='caffe', type=str)
 
-    parser.add_argument('--image_dir', dest='image_dir',
-                        default="")
+    parser.add_argument('--image_dir', dest='image_dir', default="sample_images")
 
     args = parser.parse_args()
     return args
@@ -199,9 +197,16 @@ class FoodClassifier:
 if __name__ == '__main__':
     args = parse_args()
 
+    # for yochin
+    path_model_detector = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
+    path_to_model_classifier = 'output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar'
+
+    # # for github
+    # path_model_detector = 'output/faster_rcnn_1_7_9999.pth'
+    # path_to_model_classifier = 'output/model_best.pth.tar'
+
     args.dataset = 'OpenImageSimpleCategory_test'
-    # args.load_name = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
-    args.load_name = 'output/faster_rcnn_1_7_9999.pth'
+    args.load_name = path_model_detector
 
     args.net = 'resnet50'
     args.prep_type = 'caffe'
@@ -219,7 +224,7 @@ if __name__ == '__main__':
     # possible dbname='FoodX251', 'Food101', 'Kfood'
     # possible eval_crop_type='CenterCrop', 'TenCrop'
     food_classifier = FoodClassifier(net='senet154', dbname='Kfood', eval_crop_type='CenterCrop',
-                                     ck_file='output/model_best.pth.tar')
+                                     ck_file=path_to_model_classifier)
 
     print('Called with args:')
 
@@ -276,13 +281,13 @@ if __name__ == '__main__':
     from model.faster_rcnn.resnet import resnet
 
     if args.net == 'vgg16':
-        fasterRCNN = vgg16(pascal_classes, use_pretrained=False, class_agnostic=args.class_agnostic)
+        fasterRCNN = vgg16(pascal_classes, class_agnostic=args.class_agnostic)
     elif args.net == 'resnet101':
-        fasterRCNN = resnet(pascal_classes, num_layers=101, use_pretrained=False, class_agnostic=args.class_agnostic)
+        fasterRCNN = resnet(pascal_classes, use_pretrained=False, num_layers=101, class_agnostic=args.class_agnostic)
     elif args.net == 'resnet50':
-        fasterRCNN = resnet(pascal_classes, num_layers=50, use_pretrained=False, class_agnostic=args.class_agnostic)
+        fasterRCNN = resnet(pascal_classes, use_pretrained=False, num_layers=50, class_agnostic=args.class_agnostic)
     elif args.net == 'resnet152':
-        fasterRCNN = resnet(pascal_classes, num_layers=152, use_pretrained=False, class_agnostic=args.class_agnostic)
+        fasterRCNN = resnet(pascal_classes, use_pretrained=False, num_layers=152, class_agnostic=args.class_agnostic)
     else:
         print("network is not defined")
         pdb.set_trace()
@@ -573,3 +578,5 @@ if __name__ == '__main__':
     if webcam_num >= 0:
         cap.release()
         cv2.destroyAllWindows()
+
+    print('Results are stored in %s' % pathOutputSaveImages)
