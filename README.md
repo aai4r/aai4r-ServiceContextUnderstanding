@@ -32,7 +32,13 @@ Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster
     cd ../.. && mkdir output
     ```
 
-4. Download all models(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
+4. Download all weight files(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
+
+5. Update model files to faster-rcnn.pytorch
+    ```
+    cp lib/model/faster_rcnn/faster_rcnn.py faster-rcnn.pytorch/lib/model/faster_rcnn/faster_rcnn.py
+    cp lib/model/faster_rcnn/resnet.py faster-rcnn.pytorch/lib/model/faster_rcnn/resnet.py
+    ```
    
    
 ### Run
