@@ -26,7 +26,7 @@ from model.rpn.bbox_transform import clip_boxes
 from model.rpn.bbox_transform import bbox_transform_inv
 from model.utils.net_utils import vis_detections_korean_ext2
 from model.utils.blob import im_list_to_blob
-from model.utils.parser_func import set_dataset_args
+# from model.utils.parser_func import set_dataset_args
 from torchvision.ops import nms
 import network
 import pretrained_utils_v2 as utils
@@ -216,8 +216,25 @@ if __name__ == '__main__':
 
     print('Called with args:')
 
-    args = set_dataset_args(args, test=True)
+    # args = set_dataset_args(args, test=True)
+    args.imdb_name = args.imdbval_name = "OpenImageSimpleCategory_test"
+    args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+
+    if args.large_scale:
+        args.cfg_file = "cfgs/{}_ls.yml".format(args.net)
+    elif args.small_scale:
+        args.cfg_file = "cfgs/{}_ss.yml".format(args.net)
+    else:
+        args.cfg_file = "cfgs/{}.yml".format(args.net)
+
+    if args.anchors4 == True and args.ratios5 == True:
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.25,0.5,1,2,4]', 'MAX_NUM_GT_BOXES', '30']
+    elif args.anchors4 == True and args.ratios5 == False:
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+    elif args.anchors4 == False and args.ratios5 == True:
+        args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.25,0.5,1,2,4]', 'MAX_NUM_GT_BOXES', '30']
     print(args)
+
 
     if args.cfg_file is not None:
         cfg_from_file(args.cfg_file)
