@@ -27,7 +27,6 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
     pip install opencv-python
     pip install numpy
     pip install imageio
-     
     ```
 
 3. Make output folder and download [all weight files (detection and classification)](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
