@@ -28,6 +28,10 @@ from model.utils.net_utils import vis_detections_korean_ext2
 from model.utils.blob import im_list_to_blob
 from model.utils.parser_func import set_dataset_args
 from torchvision.ops import nms
+import network
+import pretrained_utils_v2 as utils
+import torchvision
+import pickle
 
 import pdb
 
@@ -100,11 +104,6 @@ def parse_args():
     return args
 
 
-lr = cfg.TRAIN.LEARNING_RATE
-momentum = cfg.TRAIN.MOMENTUM
-weight_decay = cfg.TRAIN.WEIGHT_DECAY
-
-
 def _get_image_blob(im):
     """Converts an image into a network input.
     Arguments:
@@ -139,15 +138,9 @@ def _get_image_blob(im):
 
     return blob, np.array(im_scale_factors)
 
-import network
-import pretrained_utils_v2 as utils
-import torchvision
-import pickle
-
-# eval_crop_type: 'TenCrop' or 'CenterCrop'
-
 
 class FoodClassifier:
+    # eval_crop_type: 'TenCrop' or 'CenterCrop'
     def __init__(self, net, dbname, eval_crop_type, ck_file):
         self.eval_crop_type = eval_crop_type
         # load class info
@@ -188,16 +181,17 @@ class FoodClassifier:
 
         return output
 
+
 if __name__ == '__main__':
     args = parse_args()
 
-    # for yochin
-    path_model_detector = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
-    path_to_model_classifier = 'output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar'
+    # # for yochin
+    # path_model_detector = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
+    # path_to_model_classifier = 'output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar'
 
-    # # for github
-    # path_model_detector = 'output/faster_rcnn_1_7_9999.pth'
-    # path_to_model_classifier = 'output/model_best.pth.tar'
+    # for github
+    path_model_detector = 'output/faster_rcnn_1_7_9999.pth'
+    path_to_model_classifier = 'output/model_best.pth.tar'
 
     args.dataset = 'OpenImageSimpleCategory_test'
     args.load_name = path_model_detector

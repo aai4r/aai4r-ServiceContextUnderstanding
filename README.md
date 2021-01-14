@@ -7,40 +7,32 @@ Food classifier crops the food area and classify it.
 The classification class is 150 Korean foods ([Kfood](https://www.aihub.or.kr/)).
 We will provide the model trained on [Food101](https://www.kaggle.com/dansbecker/food-101), [FoodX251](https://github.com/karansikka1/iFood_2019).
 
+We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch). 
+
 ### Environment
-Follow the environment in [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch).
+* Python 3.6
+* Pytorch 1.3
 
 ### Installation
-
 1. Clone this repository.
-    ```
+    ```bash
     git clone https://github.com/aai4r/aai4r-ServiceContextUnderstanding
     cd aai4r-ServiceContextUnderstanding
     ```
 
-2. Clone [faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch) and install on faster-rcnn.pytorch folder.
+2. Make output folder and download [all weight files (detection and classification)](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
+    ```bash
+    mkdir output
     ```
-    git clone https://github.com/jwyang/faster-rcnn.pytorch.git
-    cd faster-rcnn.pytorch && mkdir data
-    pip install -r requirements.txt
-    cd lib
-    sh make.sh 
+    ```bash
+    ├── output
+    │   ├── class_info_Food101.pkl
+    │   ├── class_info_FoodX251.pkl
+    │   ├── class_info_Kfood.pkl
+    │   ├── faster_rcnn_1_7_9999.pth
+    │   └── model_best.pth.tar
     ```
-
-3. Make output folder and copy all faster-rcnn files
-    ```
-    cd ../.. && mkdir output
-    cp faster-rcnn.pytorch/* .
-    ```
-
-4. Download all weight files(detection and classification) from [this link](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
-
-5. Update model files to faster-rcnn.pytorch
-    ```
-    cp lib/model/faster_rcnn/faster_rcnn.py faster-rcnn.pytorch/lib/model/faster_rcnn/faster_rcnn.py
-    cp lib/model/faster_rcnn/resnet.py faster-rcnn.pytorch/lib/model/faster_rcnn/resnet.py
-    ```
-   
+ 
    
 ### Run
 #### Webcamera demo
