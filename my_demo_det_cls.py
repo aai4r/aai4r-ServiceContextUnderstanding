@@ -9,39 +9,33 @@ from __future__ import print_function
 
 import _init_paths
 import os
+import os.path as osp
 import sys
 import numpy as np
 import argparse
 import pprint
-import pdb
 import time
 import cv2
 import torch
 from torch.autograd import Variable
-import torch.nn as nn
-import torch.optim as optim
 
-import torchvision.transforms as transforms
-import torchvision.datasets as dset
 # from scipy.misc import imread   # scipy.__version__ < 1.2.0
 from imageio import imread  # new
-from roi_data_layer.roidb import combined_roidb
-from model.utils.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
+from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.rpn.bbox_transform import clip_boxes
-# from model.nms.nms_wrapper import nms
-from torchvision.ops import nms
 from model.rpn.bbox_transform import bbox_transform_inv
-from model.utils.net_utils import save_net, load_net, vis_detections_korean_ext2
+from model.utils.net_utils import vis_detections_korean_ext2
 from model.utils.blob import im_list_to_blob
 from model.utils.parser_func import set_dataset_args
+from torchvision.ops import nms
+
 import pdb
-import os.path as osp
+
 
 try:
     xrange  # Python 2
 except NameError:
     xrange = range  # Python 3
-
 
 # detection: 'Food', 'Tableware', 'Drink'
 # classification: KFood or others
