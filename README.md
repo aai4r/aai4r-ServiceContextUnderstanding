@@ -10,8 +10,9 @@ We will provide the model trained on [Food101](https://www.kaggle.com/dansbecker
 We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch). 
 
 ### Environment
-* Python 3.6
-* Pytorch 1.3
+* python 3.6
+* pytorch 1.3.0
+* pytorchvision 0.4.1
 
 ### Installation
 1. Clone this repository.
@@ -20,7 +21,16 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
     cd aai4r-ServiceContextUnderstanding
     ```
 
-2. Make output folder and download [all weight files (detection and classification)](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
+2. Install required modules
+    ```bash
+    pip install pretrainedmodels
+    pip install opencv-python
+    pip install numpy
+    pip install imageio
+     
+    ```
+
+3. Make output folder and download [all weight files (detection and classification)](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
     ```bash
     mkdir output
     ```
