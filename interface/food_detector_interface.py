@@ -14,7 +14,9 @@ class FoodDetector(object):
         print('- models loaded from {}'.format(path))
 
     def detect(self, img):
+        # - image shape is (height,width,no_channels)
         print('- input image shape: {}'.format(img.shape))
+        # - result is a list of [x1,y1,x2,y2,class_id]
         results = [[100,100,200,200,123],[200,200,300,300,111]]
         return results
 
