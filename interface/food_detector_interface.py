@@ -1,3 +1,8 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import _init_paths
 import os
 import json
 import requests
@@ -413,7 +418,7 @@ class FoodDetectionRequestHandler(object):
 if __name__ == '__main__':
     image_url = 'https://ppss.kr/wp-content/uploads/2019/08/03-62-540x362.jpg'
     # TODO: set model_path
-    model_path = '/home/yochin/Desktop/test_install/aai4r-ServiceContextUnderstanding/output'
+    model_path = './output'
     handler = FoodDetectionRequestHandler(model_path)   # init
     print('FoodDetectionRequestHandler is initialized!')
     handler.process_inference_request(image_url)        # request
