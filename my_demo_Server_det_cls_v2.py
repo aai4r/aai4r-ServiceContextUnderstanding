@@ -172,30 +172,17 @@ def _get_image_blob(im):
 
 
 class FoodClassifier:
-    def __init__(self, net, dbname, eval_crop_type, ck_file):
+    # eval_crop_type: 'TenCrop' or 'CenterCrop'
+    def __init__(self, net, dbname, eval_crop_type, ck_file_folder):
         self.eval_crop_type = eval_crop_type
         # load class info
-        path_class_to_idx = 'output/class_info_%s.pkl' % dbname
+        path_class_to_idx = os.path.join(ck_file_folder, 'class_info_%s.pkl' % dbname)
         if os.path.exists(path_class_to_idx):
             fid = open(path_class_to_idx, 'rb')
             self.class_to_idx = pickle.load(fid)
             fid.close()
         else:
-            if dbname == 'Food101':
-                ts_db_path = 'data/Cloud_PublicDB/[Food]Food101/food-101/organized/test'  # 250 / food
-            elif dbname == 'FoodX251':
-                ts_db_path = 'data/Cloud_PublicDB/[Food]FoodX251/organized/val_set'
-            elif dbname == 'Kfood':
-                ts_db_path = 'data/Cloud_PublicDB/[Food]Kfood/organized/test'
-            else:
-                raise AssertionError('%s dbname is not supported' % dbname)
-
-            temp = torchvision.datasets.ImageFolder(root=ts_db_path)
-            self.class_to_idx = temp.class_to_idx
-
-            fid = open(path_class_to_idx, 'wb')
-            pickle.dump(self.class_to_idx, fid)
-            fid.close()
+            raise AssertionError('%s file is not exists' % path_class_to_idx)
 
         self.idx_to_class = dict((v, k) for k, v in self.class_to_idx.items())
 
@@ -203,13 +190,11 @@ class FoodClassifier:
         self.model = network.pret_torch_nets(model_name=net, pretrained=True, class_num=len(self.class_to_idx))
         self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type,
                                           rescale_input_size=1.0)
-        checkpoint = torch.load(ck_file)
+        checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)))
         self.model.load_state_dict(checkpoint['state_dict'])
-        self.model.cuda()
-
-        self.model.eval()
 
     def classify(self, image):
+        self.model.eval()
         output = self.model(image)
 
         return output
@@ -235,7 +220,7 @@ if __name__ == '__main__':
     net_clf = 'senet154' # 'senet154'
     dbname = 'Kfood'
     food_classifier = FoodClassifier(net=net_clf, dbname=dbname, eval_crop_type='TenCrop',
-                                     ck_file='output/baseline-%s-torchZR/%s/%s/model_best.pth.tar' % (dbname, net_clf, net_clf))
+                                     ck_file_folder='output')
     pascal_classes = np.asarray(['__background__',  # always index 0
                     '음식',
                     '식기',
