@@ -48,14 +48,14 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
 
 Run the demo code with the webcam number (we used 0).
    ```bash
-   python my_demo_det_cls.py --webcam_num 0
+   python my_demo_det_multi.py --webcam_num 0
    ```
    
 #### Image demo
 
 Run the demo code with the sample images.
    ```bash
-   python my_demo_det_cls.py --image_dir sample_images
+   python my_demo_det_multi.py --image_dir sample_images
    ```
    
 #### CLOi demo

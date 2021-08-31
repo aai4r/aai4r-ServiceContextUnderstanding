@@ -9,6 +9,7 @@ from __future__ import print_function
 
 import _init_paths
 import os
+import os.path as osp
 import sys
 import numpy as np
 import argparse
@@ -18,22 +19,21 @@ import time
 import cv2
 import torch
 from torch.autograd import Variable
-import torch.nn as nn
-import torch.optim as optim
 
-import torchvision.transforms as transforms
-import torchvision.datasets as dset
 # from scipy.misc import imread   # scipy.__version__ < 1.2.0
 from imageio import imread  # new
-from roi_data_layer.roidb import combined_roidb
-from model.utils.config import cfg, cfg_from_file, cfg_from_list, get_output_dir
+from model.utils.config import cfg, cfg_from_file, cfg_from_list
 from model.rpn.bbox_transform import clip_boxes
-# from model.nms.nms_wrapper import nms
-from torchvision.ops import nms
 from model.rpn.bbox_transform import bbox_transform_inv
-from model.utils.net_utils import save_net, load_net, vis_detections_korean_ext2_wShare, vis_detections_korean_ext2
+from model.utils.net_utils import vis_detections_korean_ext2, vis_detections_korean_ext2_wShare
 from model.utils.blob import im_list_to_blob
-from model.utils.parser_func import set_dataset_args
+# from model.utils.parser_func import set_dataset_args
+from torchvision.ops import nms
+import network
+import pretrained_utils_v2 as utils
+import torchvision
+import pickle
+
 import pdb
 
 try:
@@ -41,6 +41,9 @@ try:
 except NameError:
     xrange = range  # Python 3
 
+# detection: 'food', 'dish', 'outlery', 'etc'
+# classification: classes in KFood
+# food amount: 0.0 ~ 1.0
 
 def parse_args():
     """
@@ -201,12 +204,89 @@ def _get_image_blob(im):
     return blob, np.array(im_scale_factors)
 
 
+class FoodClassifier:
+    # eval_crop_type: 'TenCrop' or 'CenterCrop'
+    def __init__(self, net, dbname, eval_crop_type, ck_file_folder):
+        self.eval_crop_type = eval_crop_type
+        # load class info
+        path_class_to_idx = os.path.join(ck_file_folder, 'class_info_%s.pkl' % dbname)
+        if os.path.exists(path_class_to_idx):
+            fid = open(path_class_to_idx, 'rb')
+            self.class_to_idx = pickle.load(fid)
+            fid.close()
+        else:
+            raise AssertionError('%s file is not exists' % path_class_to_idx)
+
+        self.idx_to_class = dict((v, k) for k, v in self.class_to_idx.items())
+
+        # create model
+        self.model = network.pret_torch_nets(model_name=net, pretrained=True, class_num=len(self.class_to_idx))
+        self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type,
+                                          rescale_input_size=1.0)
+        checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)))
+        self.model.load_state_dict(checkpoint['state_dict'])
+
+    def classify(self, image):
+        self.model.eval()
+        output = self.model(image)
+
+        return output
+
+
 if __name__ == '__main__':
     args = parse_args()
 
-    print('Called with args:')
+    # # for yochin
+    # path_model_detector = 'output/frcn-OpenImageSimpleCategory/resnet50/resnet50/faster_rcnn_1_7_9999.pth'
+    # path_to_model_classifier = 'output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar'
+
+    # for github
+    path_model_detector = 'output/faster_rcnn_1_7_9999.pth'
+    path_to_model_classifier = 'output'
+
+    args.dataset = 'CloudStatus_val'
+    args.imdb_name2 = 'CloudTableThings_val'
+    args.total_imdb_name = 'CloudStatusTableThings_val'
+    args.load_name = path_model_detector
+
+    args.use_share_regress = True
+
+    args.net = 'resnet50'
+    args.prep_type = 'caffe'
+    args.shuffle_db = True
+    # args.image_dir = 'images/OpenImageSimpleCategory'
+    # args.image_dir = 'images/MyFoodImages_Kfood'
+    # args.image_dir = 'images/MyFoodImages_Food101'
+    args.cuda = True
     args.dataset_t = ''  # assign dummy naming
-    args = set_dataset_args(args, test=True)
+    args.save_result = True
+
+
+    # Load food classifier
+    # possible dbname='FoodX251', 'Food101', 'Kfood'
+    # possible eval_crop_type='CenterCrop', 'TenCrop'
+    food_classifier = FoodClassifier(net='senet154', dbname='Kfood', eval_crop_type='CenterCrop',
+                                     ck_file_folder=path_to_model_classifier)
+
+    print('Called with args:')
+
+    # args = set_dataset_args(args, test=True)
+    args.imdb_name = args.imdbval_name = "OpenImageSimpleCategory_test"
+    args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+
+    if args.large_scale:
+        args.cfg_file = "cfgs/{}_ls.yml".format(args.net)
+    elif args.small_scale:
+        args.cfg_file = "cfgs/{}_ss.yml".format(args.net)
+    else:
+        args.cfg_file = "cfgs/{}.yml".format(args.net)
+
+    if args.anchors4 == True and args.ratios5 == True:
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.25,0.5,1,2,4]', 'MAX_NUM_GT_BOXES', '30']
+    elif args.anchors4 == True and args.ratios5 == False:
+        args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+    elif args.anchors4 == False and args.ratios5 == True:
+        args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.25,0.5,1,2,4]', 'MAX_NUM_GT_BOXES', '30']
     print(args)
 
     if args.cfg_file is not None:
@@ -227,6 +307,14 @@ if __name__ == '__main__':
     if not os.path.exists(input_dir):
         raise Exception('There is no input directory for loading network from ' + input_dir)
     load_name = args.load_name
+
+    list_box_color = [(0, 0, 0),
+                      (0, 0, 200),
+                      (0, 200, 0),
+                      (200, 200, 0),
+                      (200, 0, 200),
+                      (0, 200, 200),
+                      (200, 0, 200)]
 
     classes0 = get_class_list(args.dataset)
     classes1 = get_class_list(args.imdb_name2)
@@ -504,6 +592,10 @@ if __name__ == '__main__':
             else:
                 im2show = np.copy(im)
                 im_scale = 1.0
+
+        im_pil = torchvision.transforms.ToPILImage(mode=None)(im[:,:,::-1])
+        im_width, im_height = im_pil.size
+
         for j in xrange(1, len(classes_total)):
             inds = torch.nonzero(scores[:, j] > thresh).view(-1)    # find index with scores > threshold in j-class
             # if there is det
@@ -526,14 +618,78 @@ if __name__ == '__main__':
                 cls_dets = cls_dets[order]
                 keep = nms(cls_boxes[order, :], cls_scores[order], cfg.TEST.NMS)
                 cls_dets = cls_dets[keep.view(-1).long()]
-                if args.vis or args.save_result:
-                    cls_dets[:, :4] = cls_dets[:, :4] * im_scale
-                    if args.use_share_regress and classes_total[j] == 'food':
-                        im2show = vis_detections_korean_ext2_wShare(im2show, classes_total[j],
-                                                                    cls_dets.cpu().detach().numpy(), draw_score=False, thresh=args.vis_th)
-                    else:
-                        im2show = vis_detections_korean_ext2(im2show, classes_total[j],
-                                                                    cls_dets.cpu().detach().numpy(), draw_score=False, thresh=args.vis_th)
+
+                # im: original image, (768, 1024, 3)
+                # im_data: blob image, (1, 3, 600, 800)
+                # cls_dets: x1, y1, x2, y2, score
+
+                # crop and feed to classifier
+                # im_pil.save(osp.join(pathOutputSaveImages, 'debug_input.png'))
+                if classes_total[j] == 'food':
+                    for k in range(cls_dets.shape[0]):
+                        crop_margin_ratio = 0.1
+
+                        x1 = int(cls_dets[k, 0])
+                        y1 = int(cls_dets[k, 1])
+                        x2 = int(cls_dets[k, 2])
+                        y2 = int(cls_dets[k, 3])
+
+                        crop_h_margin = (y2 - y1) * crop_margin_ratio/2.
+                        crop_w_margin = (x2 - x1) * crop_margin_ratio/2.
+
+                        x1 = x1 - crop_w_margin
+                        y1 = y1 - crop_h_margin
+                        x2 = x2 + crop_w_margin
+                        y2 = y2 + crop_h_margin
+
+                        if x1 < 0: x1 = 0
+                        if y1 < 0: y1 = 0
+                        if x2 > im_width-1: x2 = im_width-1
+                        if y2 > im_height-1: y2 = im_height-1
+
+                        im_crop = im_pil.crop((x1, y1, x2, y2))
+                        # im_crop.save(osp.join(pathOutputSaveImages, 'debug_crop.png'))
+
+                        im_crop = food_classifier.test_transform(im_crop)
+                        im_crop = torch.unsqueeze(im_crop, dim=0)
+
+                        if food_classifier.eval_crop_type == 'TenCrop':
+                            bs, ncrops, c, h, w = im_crop.size()
+                            im_crop = im_crop.view(-1, c, h, w)
+
+                        food_output = food_classifier.classify(im_crop)
+
+                        if food_classifier.eval_crop_type == 'TenCrop':
+                            food_output = food_output.view(bs, ncrops, -1).mean(1)  # avg over crops
+
+                        topk_score, topk_index = torch.topk(food_output, 5, dim=1)
+
+                        food_class = [food_classifier.idx_to_class[topk_index[0][l].item()] for l in range(5)]
+                        food_score = torch.nn.functional.softmax(topk_score[0], dim=0)
+
+                        # print(food_class, food_score)
+
+                        if args.vis or args.save_result:
+                            bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
+                            bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+
+                            # class_name_w_food = '%s (%s: %.2f)'%(pascal_classes[j], food_class[0], food_score[0].item())
+                            class_name_w_food = '%s (%s)'%(classes_total[j], food_class[0])
+                            im2show = vis_detections_korean_ext2_wShare(im2show, class_name_w_food, bbox_draw,
+                                                                 box_color=list_box_color[j], text_color=(255, 255, 255),
+                                                                 text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
+                                                                 draw_score=False, draw_text_out_of_box=True)
+                else:
+                    if args.vis or args.save_result:
+                        bbox_draw = cls_dets.detach().cpu().numpy()
+                        bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+
+                        im2show = vis_detections_korean_ext2(im2show, classes_total[j], bbox_draw,
+                                                             box_color=list_box_color[j], text_color=(255, 255, 255),
+                                                             text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
+                                                             draw_score=False, draw_text_out_of_box=True)
+
+
 
         misc_toc = time.time()
         nms_time = misc_toc - misc_tic
