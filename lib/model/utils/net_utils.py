@@ -405,7 +405,7 @@ def vis_detections_korean_ext2(im, class_name, dets, box_color=(0, 0, 204), text
 
     for i in range(np.minimum(10, dets.shape[0])):
         bbox = tuple(int(np.round(x)) for x in dets[i, :4])
-        score = dets[i, -1]
+        score = dets[i, 4]
         if score > thresh:
             # cv2.rectangle(im, bbox[0:2], bbox[2:4], box_color, 3)
             # cv2.putText(im, '%s: %.2f' % (class_name, score), (bbox[0], bbox[1] + 25), cv2.FONT_HERSHEY_PLAIN,
@@ -416,6 +416,41 @@ def vis_detections_korean_ext2(im, class_name, dets, box_color=(0, 0, 204), text
                 strText = '%s: %.2f' % (class_name, score)
             else:
                 strText = class_name
+
+            text_w, text_h = font.getsize(strText)
+
+            if draw_text_out_of_box:
+                im_draw.rectangle((bbox[0], bbox[1] - 20, bbox[0]+text_w, bbox[1] - 20 + text_h), fill=text_bg_color)
+                im_draw.text((bbox[0], bbox[1] - 20), strText, font=font, fill=text_color)
+            else:
+                im_draw.rectangle((bbox[0], bbox[1], bbox[0] + text_w, bbox[1] + text_h), fill=text_bg_color)
+                im_draw.text((bbox[0], bbox[1]), strText, font=font, fill=text_color)
+
+    im = np.array(im_pil)
+
+    return im
+
+
+def vis_detections_korean_ext2_wShare(im, class_name, dets, box_color=(0, 0, 204), text_color=(0, 0, 0), text_bg_color=(0, 0, 180), fontsize=20, thresh=0.8, draw_score=True, draw_text_out_of_box=True):
+    """Visual debugging of detections."""
+    font = ImageFont.truetype('NanumGothic.ttf', fontsize)
+    im_pil = Image.fromarray(im)
+    im_draw = ImageDraw.Draw(im_pil)
+
+    for i in range(dets.shape[0]):
+        bbox = tuple(int(np.round(x)) for x in dets[i, :4])
+        score = dets[i, 4]
+        share = dets[i, 5]
+        if score > thresh:
+            # cv2.rectangle(im, bbox[0:2], bbox[2:4], box_color, 3)
+            # cv2.putText(im, '%s: %.2f' % (class_name, score), (bbox[0], bbox[1] + 25), cv2.FONT_HERSHEY_PLAIN,
+            #             2.0, (0, 0, 0), thickness=3)
+            im_draw.rectangle(bbox, outline=box_color, width=3)
+
+            if draw_score:
+                strText = '%s: %.2f, %.2f' % (class_name, score, share)
+            else:
+                strText = '%s, %.2f' % (class_name, share)
 
             text_w, text_h = font.getsize(strText)
 

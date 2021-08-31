@@ -14,29 +14,10 @@ __D = edict()
 cfg_d = __D
 #
 # Training options
-#with regard to pascal, the directories under the path will be ./VOC2007, ./VOC2012"
-__D.PASCAL = "/home/yochin/Desktop/DA_Detection/data/VOCdevkit"
-# __D.PASCALCLIP = ""
-__D.PASCALWATER = "/home/yochin/Desktop/DA_Detection/data/VOCdevkit_water"
-#For these datasets, the directories under the path will be Annotations  ImageSets  JPEGImages."
-__D.CLIPART = "/home/yochin/Desktop/DA_Detection/data/clipart"
-__D.WATER = "/home/yochin/Desktop/DA_Detection/data/watercolor"
-__D.SIM10K = "/home/yochin/Desktop/DA_Detection/data/gta-sim10k"
-__D.CITYSCAPE_CAR = "/home/yochin/Desktop/DA_Detection/data/cityscape_car"
-__D.CITYSCAPE = "/home/yochin/Desktop/DA_Detection/data/cityscape"
-__D.FOGGYCITY = "/home/yochin/Desktop/DA_Detection/data/foggy_cityscape"
-__D.KITTI_CAR = "/home/yochin/Desktop/DA_Detection_py1/data/KITTI_PASCALstyle"
-__D.BDD100K = "/home/yochin/Desktop/DA_Detection_py1/data/bdd100k/bdd100k"
-__D.BDD100K_FORCITYSCAPE = "/home/yochin/Desktop/DA_Detection_py1/data/bdd100k_forcityscape"
-__D.CITYSCAPE_10CLASS = "/home/yochin/Desktop/DA_Detection_py1/data/cityscape_10class"
-
-__D.CITYSCAPE_ADAIN     = "/home/yochin/Desktop/DA_Detection/data/city_to_foggy"
-__D.SIM10K_ADAIN        = "/home/yochin/Desktop/DA_Detection/data/sim10k_to_citycar"
-__D.PASCAL_ADAINCLIPART = "/home/yochin/Desktop/DA_Detection/data/pas_to_clipart"
-__D.PASCALWATER_ADAIN   = "/home/yochin/Desktop/DA_Detection/data/pas_to_water"
-
-__D.GMUKITCHEN = "/home/yochin/Desktop/DA_Detection/data/GMUKitchen"
 __D.OpenImageSimpleCategory = "/home/yochin/Desktop/AIR_PublicDB/OIDv4_ToolKit/Dataset2/Short-Isol-HumanAnn_PASCAL"
+__D.CloudTableThings = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudTableThings'
+__D.CloudTableThingsFineClass = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudTableThingsFineClass'
+__D.CloudStatus = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudStatusDB'
 
 def _merge_a_into_b(a, b):
   """Merge config dictionary a into config dictionary b, clobbering the

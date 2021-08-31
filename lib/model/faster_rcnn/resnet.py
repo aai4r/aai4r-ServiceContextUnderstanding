@@ -219,7 +219,7 @@ def resnet152(pretrained=False):
   return model
 
 class resnet(_fasterRCNN):
-  def __init__(self, classes, use_pretrained, freeze_base=False, freeze_top=False, pretrained_path=None, num_layers=101, class_agnostic=False):
+  def __init__(self, classes, use_pretrained, freeze_base=False, freeze_top=False, pretrained_path=None, num_layers=101, class_agnostic=False, use_share_regress=False):
     self.pretrained = use_pretrained
     self.model_path = pretrained_path   # 'data/pretrained_model/resnet101_caffe.pth'
     self.dout_base_model = 1024
@@ -227,8 +227,9 @@ class resnet(_fasterRCNN):
     self.freeze_base = freeze_base
     self.freeze_top = freeze_top
     self.num_layers = num_layers
+    self.use_share_regress = use_share_regress
 
-    _fasterRCNN.__init__(self, classes, class_agnostic)
+    _fasterRCNN.__init__(self, classes, class_agnostic, use_share_regress=self.use_share_regress)
 
   def _init_modules(self):
     if self.num_layers == 101:

@@ -22,18 +22,22 @@ from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_gri
 
 class _fasterRCNN(nn.Module):
     """ faster RCNN """
-    def __init__(self, classes, class_agnostic, use_share_regress=False):
+    def __init__(self, classes0, classes1, class_agnostic, use_share_regress=False):
         super(_fasterRCNN, self).__init__()
-        self.classes = classes
-        self.n_classes = len(classes)
+        self.classes0 = classes0
+        self.classes1 = classes1
+        self.n_classes0 = len(classes0)
+        self.n_classes1 = len(classes1)
         self.class_agnostic = class_agnostic
         # loss
         self.RCNN_loss_cls = 0
         self.RCNN_loss_bbox = 0
 
         # define rpn
-        self.RCNN_rpn = _RPN(self.dout_base_model)
-        self.RCNN_proposal_target = _ProposalTargetLayer(self.n_classes)
+        self.RCNN_rpn0 = _RPN(self.dout_base_model)
+        self.RCNN_rpn1 = _RPN(self.dout_base_model)
+        self.RCNN_proposal_target0 = _ProposalTargetLayer(self.n_classes0)
+        self.RCNN_proposal_target1 = _ProposalTargetLayer(self.n_classes1)
 
         self.use_share_regress = use_share_regress
 
@@ -51,7 +55,7 @@ class _fasterRCNN(nn.Module):
         if self.use_share_regress:
             self.RCNN_share_regress = nn.Linear(2048, 1)
 
-    def forward(self, im_data, im_info, gt_boxes, num_boxes):
+    def forward(self, im_data, im_info, gt_boxes, num_boxes, flow_id):
         batch_size = im_data.size(0)
 
         im_info = im_info.data
@@ -65,9 +69,15 @@ class _fasterRCNN(nn.Module):
         # gt_boxes is to used to check bbox overlap
         # rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
         if self.training:
-            rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes[:, :, :5], num_boxes)
+            if flow_id == 0:
+                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn0(base_feat, im_info, gt_boxes[:, :, :5], num_boxes)
+            elif flow_id == 1:
+                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn1(base_feat, im_info, gt_boxes[:, :, :5], num_boxes)
         else:
-            rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn(base_feat, im_info, gt_boxes, num_boxes)
+            if flow_id == 0:
+                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn0(base_feat, im_info, gt_boxes, num_boxes)
+            elif flow_id == 1:
+                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn1(base_feat, im_info, gt_boxes, num_boxes)
 
         # print('RCNN_rpn.rois: ', rois[:, :10, :])
         # gt_boxes.shape [1, 30, 5]
@@ -76,7 +86,11 @@ class _fasterRCNN(nn.Module):
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training:
             # gt_boxes' last column is class index
-            roi_data = self.RCNN_proposal_target(rois, gt_boxes, num_boxes)
+            if flow_id == 0:
+                roi_data = self.RCNN_proposal_target0(rois, gt_boxes, num_boxes)
+            elif flow_id == 1:
+                roi_data = self.RCNN_proposal_target1(rois, gt_boxes, num_boxes)
+
             rois, rois_label, rois_target, rois_inside_ws, rois_outside_ws, rois_share = roi_data
 
             # # print('im_data: ', im_data)
@@ -102,12 +116,6 @@ class _fasterRCNN(nn.Module):
         rois = Variable(rois)
         # do roi pooling based on predicted rois
 
-        # # yochin
-        # torch.fill_(rois, 0)
-        # # pdb.set_trace()
-        # rois[0, 0, :] = torch.tensor([0.0000, 603.9924,  241.8251,  630.7985,  253.2319])
-        # rois[0, 1, :] = torch.tensor([0.0000, 336.5019,  239.5437,  375.2852,  254.9430])
-
         if cfg.POOLING_MODE == 'align':
             # pdb.set_trace()
             pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
@@ -126,25 +134,26 @@ class _fasterRCNN(nn.Module):
 
         # compute regression score
         # self.RCNN_share_regress = nn.Linear(2048, 1)
-        if self.use_share_regress:
-            share_score_pred = self.RCNN_share_regress(pooled_feat)
-            share_pred = F.sigmoid(share_score_pred)
-            share_pred = share_pred.squeeze(1)
+        if flow_id == 0:
+            if self.use_share_regress:
+                share_score_pred = self.RCNN_share_regress(pooled_feat)
+                # share_pred = F.sigmoid(share_score_pred)  # deprecated
+                share_pred = torch.sigmoid(share_score_pred)
+                share_pred = share_pred.squeeze(1)
 
-        # compute bbox offset
-        # ref: self.RCNN_bbox_pred = nn.Linear(2048, 4 * self.n_classes)
-        bbox_pred = self.RCNN_bbox_pred(pooled_feat)
+            bbox_pred = self.RCNN_bbox_pred0(pooled_feat)
+            cls_score = self.RCNN_cls_score0(pooled_feat)
+
+        elif flow_id == 1:
+            bbox_pred = self.RCNN_bbox_pred1(pooled_feat)
+            cls_score = self.RCNN_cls_score1(pooled_feat)
+
         if self.training and not self.class_agnostic:
             # select the corresponding columns according to roi labels
             bbox_pred_view = bbox_pred.view(bbox_pred.size(0), int(bbox_pred.size(1) / 4), 4)
             bbox_pred_select = torch.gather(bbox_pred_view, 1, rois_label.view(rois_label.size(0), 1, 1).expand(rois_label.size(0), 1, 4))
             bbox_pred = bbox_pred_select.squeeze(1)
 
-            # pdb.set_trace()
-
-        # compute object classification probability
-        # ref: self.RCNN_cls_score = nn.Linear(2048, self.n_classes)
-        cls_score = self.RCNN_cls_score(pooled_feat)
         cls_prob = F.softmax(cls_score, 1)
 
         RCNN_loss_cls = 0
@@ -159,7 +168,7 @@ class _fasterRCNN(nn.Module):
             RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
 
             # choose rois_lable, batch, rois_label
-            if self.use_share_regress:
+            if flow_id == 0 and self.use_share_regress:
                 fg_idx = rois_label != 0
                 share_loss = F.mse_loss(share_pred[fg_idx], rois_share[0, fg_idx]*0.01)
 
@@ -175,7 +184,7 @@ class _fasterRCNN(nn.Module):
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-        if self.use_share_regress:
+        if flow_id == 0 and self.use_share_regress:
             share_pred = share_pred.view(batch_size, rois.size(1), -1)
         else:
             share_pred = 0
@@ -194,11 +203,18 @@ class _fasterRCNN(nn.Module):
                 m.weight.data.normal_(mean, stddev)
                 m.bias.data.zero_()
 
-        normal_init(self.RCNN_rpn.RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_rpn.RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_rpn.RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
-        normal_init(self.RCNN_bbox_pred, 0, 0.001, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_rpn0.RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_rpn0.RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_rpn0.RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_cls_score0, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_bbox_pred0, 0, 0.001, cfg.TRAIN.TRUNCATED)
+
+        normal_init(self.RCNN_rpn1.RPN_Conv, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_rpn1.RPN_cls_score, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_rpn1.RPN_bbox_pred, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_cls_score1, 0, 0.01, cfg.TRAIN.TRUNCATED)
+        normal_init(self.RCNN_bbox_pred1, 0, 0.001, cfg.TRAIN.TRUNCATED)
+
         if self.use_share_regress:
             normal_init(self.RCNN_share_regress, 0, 0.001, cfg.TRAIN.TRUNCATED)
 
