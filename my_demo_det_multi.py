@@ -251,7 +251,7 @@ def _get_image_blob(im):
 
 class FoodClassifier:
     # eval_crop_type: 'TenCrop' or 'CenterCrop'
-    def __init__(self, net, dbname, eval_crop_type, ck_file_folder):
+    def __init__(self, net, dbname, eval_crop_type, ck_file_folder, pretrained=True):
         self.eval_crop_type = eval_crop_type
         # load class info
         path_class_to_idx = os.path.join(ck_file_folder, 'class_info_%s.pkl' % dbname)
@@ -265,7 +265,7 @@ class FoodClassifier:
         self.idx_to_class = dict((v, k) for k, v in self.class_to_idx.items())
 
         # create model
-        self.model = network.pret_torch_nets(model_name=net, pretrained=True, class_num=len(self.class_to_idx))
+        self.model = network.pret_torch_nets(model_name=net, pretrained=pretrained, class_num=len(self.class_to_idx))
         self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type,
                                           rescale_input_size=1.0)
         checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)))
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     # possible dbname='FoodX251', 'Food101', 'Kfood'
     # possible eval_crop_type='CenterCrop', 'TenCrop'
     food_classifier = FoodClassifier(net='senet154', dbname='Kfood', eval_crop_type='CenterCrop',
-                                     ck_file_folder=path_to_model_classifier)
+                                     ck_file_folder=path_to_model_classifier, pretrained=False)
 
     print('Called with args:')
 
