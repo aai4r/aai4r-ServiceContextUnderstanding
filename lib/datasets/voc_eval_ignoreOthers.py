@@ -7,15 +7,17 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import pdb
 import xml.etree.ElementTree as ET
 import os
 import pickle
 import numpy as np
 
-
-def parse_rec(filename):
+def parse_rec(filename, modify_input=False):
     """ Parse a PASCAL VOC xml file """
-    tree = ET.parse(filename)
+    # tree = ET.parse(filename)
+    _parser = ET.XMLParser(encoding='utf-8')
+    tree = ET.parse(filename, _parser)
     objects = []
     for obj in tree.findall('object'):
         obj_struct = {}
@@ -24,10 +26,29 @@ def parse_rec(filename):
         obj_struct['truncated'] = int(0)
         obj_struct['difficult'] = int(0)
         bbox = obj.find('bndbox')
-        obj_struct['bbox'] = [int(bbox.find('xmin').text),
-                              int(bbox.find('ymin').text),
-                              int(bbox.find('xmax').text),
-                              int(bbox.find('ymax').text)]
+        obj_struct['bbox'] = [int(float(bbox.find('xmin').text)),
+                              int(float(bbox.find('ymin').text)),
+                              int(float(bbox.find('xmax').text)),
+                              int(float(bbox.find('ymax').text))]
+
+        if modify_input:
+            try:
+                share = int(obj.find('share').text.strip().split('%')[0])
+            except:
+                print(filename)
+                raise AssertionError('%s is not in list' % (obj.find('share').text.strip().split('%')[0]))
+
+            obj_name = obj_struct['name'].strip()
+
+            if obj_name == '빈용기' or obj_name == '빈그릇':
+                obj_name = 'dish'
+            elif share == 0:
+                obj_name = 'dish'
+            else:
+                obj_name = 'food'
+
+            obj_struct['name'] = obj_name
+
         objects.append(obj_struct)
 
     return objects
@@ -73,7 +94,8 @@ def voc_eval(detpath,
              classname,
              cachedir,
              ovthresh=0.5,
-             use_07_metric=False):
+             use_07_metric=False,
+             modify_input=False):
     """rec, prec, ap = voc_eval(detpath,
                                 annopath,
                                 imagesetfile,
@@ -112,7 +134,7 @@ def voc_eval(detpath,
         # load annotations
         recs = {}
         for i, imagename in enumerate(imagenames):
-            recs[imagename] = parse_rec(annopath.format(imagename))
+            recs[imagename] = parse_rec(annopath.format(imagename), modify_input=modify_input)
             if i % 100 == 0:
                 print('Reading annotation for {:d}/{:d}'.format(
                     i + 1, len(imagenames)))

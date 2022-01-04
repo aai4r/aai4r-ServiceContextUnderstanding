@@ -18,7 +18,10 @@ __D.OpenImageSimpleCategory = "/home/yochin/Desktop/AIR_PublicDB/OIDv4_ToolKit/D
 __D.CloudTableThings = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudTableThings'
 __D.CloudTableThingsFineClass = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudTableThingsFineClass'
 __D.CloudStatus = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudStatusDB'
-
+__D.CloudStatus_AL = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/CloudStatusDB_AL'
+__D.PLABEL = "/home/yochin/Desktop/DA_Detection_py1_CloudProj/output/plabel_data"
+__D.YMTestBed = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/YMTestBed'
+__D.YMTestBed_AL = '/home/yochin/Desktop/DA_Detection_py1_CloudProj/data/YMTestBed_AL'
 def _merge_a_into_b(a, b):
   """Merge config dictionary a into config dictionary b, clobbering the
   options in b whenever they are also specified in a.

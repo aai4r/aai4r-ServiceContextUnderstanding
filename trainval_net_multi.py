@@ -107,6 +107,8 @@ def parse_args():
                         help='whether perform class_agnostic bbox regression',
                         action='store_true')
 
+    parser.add_argument('--use_FPN', dest='use_FPN', action='store_true')
+
     # config optimization
     parser.add_argument('--o', dest='optimizer',
                         help='training optimizer',
@@ -148,13 +150,14 @@ def parse_args():
     parser.add_argument('--anchors4', dest='anchors4', action='store_true')
     parser.add_argument('--ratios5', dest='ratios5', action='store_true')
     parser.add_argument('--use_share_regress', dest='use_share_regress', action='store_true')
+    parser.add_argument('--use_progress', dest='use_progress', action='store_true')
 
-
-    # for SimCLR
     parser.add_argument('--pretrained_path', dest='pretrained_path',
                         help='path to load pretrained models', default="",
                         type=str)
     parser.add_argument('--prep_type', dest='prep_type', default='caffe', type=str)
+
+    parser.add_argument('--att_type', dest='att_type', help='None, BAM, CBAM', default='None', type=str)
 
     args = parser.parse_args()
     return args
@@ -189,8 +192,12 @@ if __name__ == '__main__':
     args = parse_args()
 
     print('Called with args:')
+    args.dataset_t = ''   # assign dummy naming
     args = set_dataset_args(args)
     print(args)
+
+    if args.att_type == 'None':
+        args.att_type = None
 
     if args.cfg_file is not None:
         cfg_from_file(args.cfg_file)
@@ -244,7 +251,7 @@ if __name__ == '__main__':
     sampler_batch1 = sampler(train_size1, args.batch_size)
     dataset1 = roibatchLoader(roidb1, ratio_list1, ratio_index1, args.batch_size, \
                              imdb1.num_classes, training=True, prep_type=args.prep_type,
-                             share_return=True
+                             share_return=True, progress_return=True
                              )
     dataloader1 = torch.utils.data.DataLoader(dataset1, batch_size=args.batch_size,
                                              sampler=sampler_batch1, num_workers=args.num_workers)
@@ -276,7 +283,7 @@ if __name__ == '__main__':
     im_info = torch.FloatTensor(1)
     num_boxes = torch.LongTensor(1)
     gt_boxes = torch.FloatTensor(1)
-    # gt_share = torch.FloatTensor(1)
+    gt_progress = torch.LongTensor(1)
 
     # ship to cuda
     if args.cuda:
@@ -284,40 +291,42 @@ if __name__ == '__main__':
         im_info = im_info.cuda()
         num_boxes = num_boxes.cuda()
         gt_boxes = gt_boxes.cuda()
-        # gt_share = gt_share.cuda()
+        gt_progress = gt_progress.cuda()
 
     # make variable
     im_data = Variable(im_data)
     im_info = Variable(im_info)
     num_boxes = Variable(num_boxes)
     gt_boxes = Variable(gt_boxes)
-    # gt_share = Variable(gt_share)
+    gt_progress = Variable(gt_progress)
 
     if args.cuda:
         cfg.CUDA = True
 
     # initilize the network here.
     # freeze_base, pretrained_path, num_layers=101
-    from model.faster_rcnn.resnet_multi import resnet
+    if args.use_FPN:
+        from model.fpn.resnet_multi_CBAM import resnet
+    else:
+        from model.faster_rcnn.resnet_multi import resnet
     if args.net == 'resnet101':
-        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True, freeze_base=True,
+        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True,
                             pretrained_path=args.pretrained_path, num_layers=101,
-                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
+                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress, use_progress=args.use_progress, att_type=args.att_type)
     elif args.net == 'resnet50':
-        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True, freeze_base=True,
+        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True,
                             pretrained_path=args.pretrained_path, num_layers=50,
-                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
+                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress, use_progress=args.use_progress, att_type=args.att_type)
     elif args.net == 'resnet152':
-        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True, freeze_base=True,
+        fasterRCNN = resnet(imdb1.classes, imdb2.classes, use_pretrained=True,
                             pretrained_path=args.pretrained_path, num_layers=152,
-                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
+                            class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress, use_progress=args.use_progress, att_type=args.att_type)
     else:
         print("network is not defined")
         pdb.set_trace()
 
     fasterRCNN.create_architecture()
 
-    lr = cfg.TRAIN.LEARNING_RATE
     lr = args.lr
     # tr_momentum = cfg.TRAIN.MOMENTUM
     # tr_momentum = args.momentum
@@ -365,7 +374,6 @@ if __name__ == '__main__':
     if args.use_tfboard:
         from tensorboardX import SummaryWriter
 
-        # logger = SummaryWriter("logs")
         logger = SummaryWriter(os.path.join(output_dir, 'logs'))
         print('log is saved in %s'%os.path.join(output_dir, 'logs'))
 
@@ -394,13 +402,21 @@ if __name__ == '__main__':
             # data[2] bbox
             # data[3] num_bbox
             # data[4] gt_share
+            # data[5] gt_progress
 
             with torch.no_grad():
+                # data_pt[0]: image [1, 3, 600/H, 1200/W]
+                # data_pt[1]: W, H, resized_ratio
+                # data_pt[2]: bbox [1, 20, 5], 5 has x1, y1, x2, y2, class_index
+                # data_pt[3]: num_bboxes
+                # data_pt[4]: [0] path_to_images, data_pt[4][0].split('/')[-1]
+                # data_pt[5]: share_gt
+                # data_pt[6]: progress_index
                 im_data.resize_(data[0].size()).copy_(data[0])
                 im_info.resize_(data[1].size()).copy_(data[1])
                 gt_boxes.resize_(data[2].size()).copy_(data[2])
                 num_boxes.resize_(data[3].size()).copy_(data[3])
-                # gt_share.resize_(data[4].size()).copy_(data[4])
+                gt_progress.resize_(data[6].size()).copy_(data[6])
 
             if step < 20:
                 result_path = os.path.join(output_dir, 'images_det', "debug_dataset1_e%d_s%05d.jpg" % (epoch, step))
@@ -411,22 +427,29 @@ if __name__ == '__main__':
                                                    (int(gt_boxes[0, kkk, 2]), int(gt_boxes[0, kkk, 3])), (0,0,255))
                     class_name = imdb1.classes[int(gt_boxes[0, kkk, 4])]
                     amount = float(gt_boxes[0, kkk, 5])
-                    cv2.putText(cv_im_data_swap, '%s-%.1f' % (class_name, amount), (int(gt_boxes[0, kkk, 0]), int(gt_boxes[0, kkk, 1]) - 15), cv2.FONT_HERSHEY_PLAIN,
-                                1.0, (0, 0, 255), thickness=1)
+                    cv2.putText(cv_im_data_swap, '%s-%.1f' % (class_name, amount),
+                                (int(gt_boxes[0, kkk, 0]), int(gt_boxes[0, kkk, 1]) - 15), cv2.FONT_HERSHEY_PLAIN,
+                                2.0, (0, 0, 255), thickness=2)
+
+                cv2.putText(cv_im_data_swap, '%s' % (gt_progress.item()),
+                            (1, 22), cv2.FONT_HERSHEY_PLAIN,
+                            2.0, (0, 0, 255), thickness=2)
 
                 cv2.imwrite(result_path, cv_im_data_swap)
                 # pdb.set_trace()     # check input image and bbox
-
             fasterRCNN.zero_grad()
             rois, cls_prob, bbox_pred, \
             rpn_loss_cls, rpn_loss_box, \
             RCNN_loss_cls, RCNN_loss_bbox, \
             rois_label, \
-            share_pred, share_loss = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=0)
+            share_pred, share_loss, \
+            progress_pred, progress_loss = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=0,
+                                                      gt_progress=gt_progress)
+            # print('gt_progress: ', gt_progress)
 
             loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
                    + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean() \
-                   + share_loss.mean()
+                   + 10. * share_loss.mean() + progress_loss.mean()
             loss_temp += loss.item()
 
             # backward
@@ -447,6 +470,7 @@ if __name__ == '__main__':
                     loss_rcnn_cls = RCNN_loss_cls.mean().item()
                     loss_rcnn_box = RCNN_loss_bbox.mean().item()
                     loss_share = share_loss.mean().item()
+                    loss_progress = progress_loss.mean().item()
                     fg_cnt = torch.sum(rois_label.data.ne(0))
                     bg_cnt = rois_label.data.numel() - fg_cnt
                 else:
@@ -455,6 +479,7 @@ if __name__ == '__main__':
                     loss_rcnn_cls = RCNN_loss_cls.item()
                     loss_rcnn_box = RCNN_loss_bbox.item()
                     loss_share = share_loss.item()
+                    loss_progress = progress_loss.item()
                     fg_cnt = torch.sum(rois_label.data.ne(0))
                     bg_cnt = rois_label.data.numel() - fg_cnt
 
@@ -464,8 +489,8 @@ if __name__ == '__main__':
                 print("\t\t\tfg/bg=(%d/%d), time cost: %f" % (fg_cnt, bg_cnt, end-start))
                 print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (loss_rpn_cls, loss_rpn_box, loss_rcnn_cls, loss_rcnn_box))
-                print("\t\t\tloss_share: %.4f" \
-                      % (loss_share))
+                print("\t\t\tloss_share: %.4f, loss_progress: %.4f" \
+                      % (10. * loss_share, loss_progress))
 
                 if args.use_tfboard:
                     info = {
@@ -474,7 +499,8 @@ if __name__ == '__main__':
                         'loss_rpn_box': loss_rpn_box,
                         'loss_rcnn_cls': loss_rcnn_cls,
                         'loss_rcnn_box': loss_rcnn_box,
-                        'loss_share': loss_share,
+                        'loss_share': 10. * loss_share,
+                        'loss_progress': loss_progress,
                     }
                     logger.add_scalars("losses_dataset0", info, (epoch - 1) * iters_per_epoch + step)
 
@@ -521,8 +547,8 @@ if __name__ == '__main__':
             rpn_loss_cls, rpn_loss_box, \
             RCNN_loss_cls, RCNN_loss_bbox, \
             rois_label, \
-            share_pred_dummy, share_loss_dummy = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=1)
-
+            _, _, \
+            _, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=1)
             # print(share_pred_dummy, share_loss_dummy)       # always 0
 
             loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
@@ -546,7 +572,6 @@ if __name__ == '__main__':
                     loss_rpn_box = rpn_loss_box.mean().item()
                     loss_rcnn_cls = RCNN_loss_cls.mean().item()
                     loss_rcnn_box = RCNN_loss_bbox.mean().item()
-                    loss_share = share_loss_dummy
                     fg_cnt = torch.sum(rois_label.data.ne(0))
                     bg_cnt = rois_label.data.numel() - fg_cnt
                 else:
@@ -554,7 +579,6 @@ if __name__ == '__main__':
                     loss_rpn_box = rpn_loss_box.item()
                     loss_rcnn_cls = RCNN_loss_cls.item()
                     loss_rcnn_box = RCNN_loss_bbox.item()
-                    loss_share = share_loss_dummy
                     fg_cnt = torch.sum(rois_label.data.ne(0))
                     bg_cnt = rois_label.data.numel() - fg_cnt
 
@@ -564,8 +588,6 @@ if __name__ == '__main__':
                 print("\t\t\tfg/bg=(%d/%d), time cost: %f" % (fg_cnt, bg_cnt, end-start))
                 print("\t\t\trpn_cls: %.4f, rpn_box: %.4f, rcnn_cls: %.4f, rcnn_box %.4f" \
                       % (loss_rpn_cls, loss_rpn_box, loss_rcnn_cls, loss_rcnn_box))
-                print("\t\t\tloss_share: %.4f" \
-                      % (loss_share))
 
                 if args.use_tfboard:
                     info = {
@@ -574,25 +596,11 @@ if __name__ == '__main__':
                         'loss_rpn_box': loss_rpn_box,
                         'loss_rcnn_cls': loss_rcnn_cls,
                         'loss_rcnn_box': loss_rcnn_box,
-                        'loss_share': loss_share,
                     }
                     logger.add_scalars("losses_dataset1", info, (epoch - 1) * iters_per_epoch + step)
 
                 loss_temp = 0
                 start = time.time()
-
-            # if step == 5000:
-            #     save_name = os.path.join(output_dir, 'faster_rcnn_{}_{}_h_{}.pth'.format(args.session, epoch, step))
-            #     save_checkpoint({
-            #         'session': args.session,
-            #         'epoch': epoch + 1,
-            #         'model': fasterRCNN.module.state_dict() if args.mGPUs else fasterRCNN.state_dict(),
-            #         'optimizer': optimizer.state_dict(),
-            #         'pooling_mode': cfg.POOLING_MODE,
-            #         'class_agnostic': args.class_agnostic,
-            #     }, save_name)
-            #     print('save model: {}'.format(save_name))
-
 
         save_name = os.path.join(output_dir, 'faster_rcnn_{}_{}_{}.pth'.format(args.session, epoch, step))
         save_checkpoint({

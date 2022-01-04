@@ -55,7 +55,7 @@ class _RPN(nn.Module):
         )
         return x
 
-    def forward(self, base_feat, im_info, gt_boxes, num_boxes):
+    def forward(self, base_feat, im_info, gt_boxes, num_boxes, return_rpn_cls_prob=False):
 
         batch_size = base_feat.size(0)
 
@@ -107,4 +107,7 @@ class _RPN(nn.Module):
             self.rpn_loss_box = _smooth_l1_loss(rpn_bbox_pred, rpn_bbox_targets, rpn_bbox_inside_weights,
                                                             rpn_bbox_outside_weights, sigma=3, dim=[1,2,3])
 
-        return rois, self.rpn_loss_cls, self.rpn_loss_box
+        if return_rpn_cls_prob:
+            return rois, self.rpn_loss_cls, self.rpn_loss_box, rpn_cls_prob_reshape
+        else:
+            return rois, self.rpn_loss_cls, self.rpn_loss_box

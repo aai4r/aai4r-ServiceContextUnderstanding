@@ -3,29 +3,27 @@ from __future__ import division
 from __future__ import print_function
 
 from model.utils.config import cfg
-from model.faster_rcnn.faster_rcnn import _fasterRCNN
+from model.fpn.fpn import _FPN
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import math
-# import torch.utils.model_zoo as model_zoo
-from collections import OrderedDict
-
+import torch.utils.model_zoo as model_zoo
 import pdb
 
+__all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+           'resnet152']
 
-# __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152']
+model_urls = {
+    'resnet18': 'https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth',
+    'resnet34': 'https://s3.amazonaws.com/pytorch/models/resnet34-333f7ec4.pth',
+    'resnet50': 'https://s3.amazonaws.com/pytorch/models/resnet50-19c8e357.pth',
+    'resnet101': 'https://s3.amazonaws.com/pytorch/models/resnet101-5d3b4d8f.pth',
+    'resnet152': 'https://s3.amazonaws.com/pytorch/models/resnet152-b121ed2d.pth',
+}
 
-
-# model_urls = {
-#   'resnet18': 'https://s3.amazonaws.com/pytorch/models/resnet18-5c106cde.pth',
-#   'resnet34': 'https://s3.amazonaws.com/pytorch/models/resnet34-333f7ec4.pth',
-#   'resnet50': 'https://s3.amazonaws.com/pytorch/models/resnet50-19c8e357.pth',
-#   'resnet101': 'https://s3.amazonaws.com/pytorch/models/resnet101-5d3b4d8f.pth',
-#   'resnet152': 'https://s3.amazonaws.com/pytorch/models/resnet152-b121ed2d.pth',
-# }
 
 def conv3x3(in_planes, out_planes, stride=1):
     "3x3 convolution with padding"
@@ -116,9 +114,7 @@ class ResNet(nn.Module):
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
-        # it is slightly better whereas slower to set stride = 1
-        # self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1)
         self.avgpool = nn.AvgPool2d(7)
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -220,106 +216,114 @@ def resnet152(pretrained=False):
     return model
 
 
-class resnet(_fasterRCNN):
-    def __init__(self, classes, use_pretrained, freeze_base=False, freeze_top=False, pretrained_path=None,
-                 num_layers=101,
-                 class_agnostic=False, use_share_regress=False, use_progress=False):
-        self.pretrained = use_pretrained
-        self.model_path = pretrained_path  # 'data/pretrained_model/resnet101_caffe.pth'
-        self.dout_base_model = 1024
+class resnet(_FPN):
+    def __init__(self, classes, num_layers=101, pretrained=False, class_agnostic=False):
+        self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
+        self.dout_base_model = 256
+        self.pretrained = pretrained
         self.class_agnostic = class_agnostic
-        self.freeze_base = freeze_base
-        self.freeze_top = freeze_top
-        self.num_layers = num_layers
-        self.use_share_regress = use_share_regress
-        self.use_progress = use_progress
 
-        _fasterRCNN.__init__(self, classes, class_agnostic,
-                             use_share_regress=self.use_share_regress, use_progress=self.use_progress)
+        _FPN.__init__(self, classes, class_agnostic)
 
     def _init_modules(self):
-        if self.num_layers == 101:
-            resnet = resnet101()
-        elif self.num_layers == 50:
-            resnet = resnet50()
-        else:
-            raise AssertionError('res-%d is not implemented' % self.num_layers)
+        resnet = resnet101()
 
-        if self.pretrained:
+        if self.pretrained == True:
             print("Loading pretrained weights from %s" % (self.model_path))
-            old_state_dict = torch.load(self.model_path)
-            new_state_dict = resnet.state_dict()  # all things are copied, key and value of target net
+            state_dict = torch.load(self.model_path)
+            resnet.load_state_dict({k: v for k, v in state_dict.items() if k in resnet.state_dict()})
 
-            # change pretrained-model-name to match with the FRCN
-            for key, value in old_state_dict.items():  # ex: encoder.conv1. weight, .. projector.0.weight
-                new_key = key  # this could be 'conv1' or 'projector'
+        self.RCNN_layer0 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool)
+        self.RCNN_layer1 = nn.Sequential(resnet.layer1)
+        self.RCNN_layer2 = nn.Sequential(resnet.layer2)
+        self.RCNN_layer3 = nn.Sequential(resnet.layer3)
+        self.RCNN_layer4 = nn.Sequential(resnet.layer4)
 
-                if new_key in new_state_dict:
-                    new_state_dict[new_key] = value
-                else:
-                    print('\t[%s] key is ignored because it is not included in resnet' % key)
+        # Top layer
+        self.RCNN_toplayer = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0)  # reduce channel
 
-            resnet.load_state_dict({k: v for k, v in new_state_dict.items() if k in resnet.state_dict()})
+        # Smooth layers
+        self.RCNN_smooth1 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
+        self.RCNN_smooth2 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
+        self.RCNN_smooth3 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
 
-        # Build resnet.
-        self.RCNN_base = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu,
-                                       resnet.maxpool, resnet.layer1, resnet.layer2, resnet.layer3)
+        # Lateral layers
+        self.RCNN_latlayer1 = nn.Conv2d(1024, 256, kernel_size=1, stride=1, padding=0)
+        self.RCNN_latlayer2 = nn.Conv2d(512, 256, kernel_size=1, stride=1, padding=0)
+        self.RCNN_latlayer3 = nn.Conv2d(256, 256, kernel_size=1, stride=1, padding=0)
 
-        self.RCNN_top = nn.Sequential(resnet.layer4)
+        # ROI Pool feature downsampling
+        self.RCNN_roi_feat_ds = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
 
-        self.RCNN_cls_score = nn.Linear(2048, self.n_classes)
+        self.RCNN_top = nn.Sequential(
+            nn.Conv2d(256, 1024, kernel_size=cfg.POOLING_SIZE, stride=cfg.POOLING_SIZE, padding=0),
+            nn.ReLU(True),
+            nn.Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0),
+            nn.ReLU(True)
+        )
+
+        self.RCNN_cls_score = nn.Linear(1024, self.n_classes)
         if self.class_agnostic:
-            self.RCNN_bbox_pred = nn.Linear(2048, 4)
+            self.RCNN_bbox_pred = nn.Linear(1024, 4)
         else:
-            self.RCNN_bbox_pred = nn.Linear(2048, 4 * self.n_classes)
+            self.RCNN_bbox_pred = nn.Linear(1024, 4 * self.n_classes)
 
         # Fix blocks
-        for p in self.RCNN_base[0].parameters(): p.requires_grad = False
-        for p in self.RCNN_base[1].parameters(): p.requires_grad = False
+        for p in self.RCNN_layer0[0].parameters(): p.requires_grad = False
+        for p in self.RCNN_layer0[1].parameters(): p.requires_grad = False
 
         assert (0 <= cfg.RESNET.FIXED_BLOCKS < 4)
         if cfg.RESNET.FIXED_BLOCKS >= 3:
-            for p in self.RCNN_base[6].parameters(): p.requires_grad = False
+            for p in self.RCNN_layer3.parameters(): p.requires_grad = False
         if cfg.RESNET.FIXED_BLOCKS >= 2:
-            for p in self.RCNN_base[5].parameters(): p.requires_grad = False
+            for p in self.RCNN_layer2.parameters(): p.requires_grad = False
         if cfg.RESNET.FIXED_BLOCKS >= 1:
-            for p in self.RCNN_base[4].parameters(): p.requires_grad = False
-
-        if self.freeze_base:
-            print("Freeze all base layers: %d" % len(self.RCNN_base))
-            for i in range(len(self.RCNN_base)):
-                for p in self.RCNN_base[i].parameters(): p.requires_grad = False
-
-        if self.freeze_top:
-            print("Freeze all top layers: %d" % len(self.RCNN_top))
-            for i in range(len(self.RCNN_top)):
-                for p in self.RCNN_top[i].parameters(): p.requires_grad = False
+            for p in self.RCNN_layer1.parameters(): p.requires_grad = False
 
         def set_bn_fix(m):
             classname = m.__class__.__name__
             if classname.find('BatchNorm') != -1:
                 for p in m.parameters(): p.requires_grad = False
 
-        self.RCNN_base.apply(set_bn_fix)
-        self.RCNN_top.apply(set_bn_fix)
+        self.RCNN_layer0.apply(set_bn_fix)
+        self.RCNN_layer1.apply(set_bn_fix)
+        self.RCNN_layer2.apply(set_bn_fix)
+        self.RCNN_layer3.apply(set_bn_fix)
+        self.RCNN_layer4.apply(set_bn_fix)
 
     def train(self, mode=True):
         # Override train so that the training mode is set as we want
         nn.Module.train(self, mode)
         if mode:
             # Set fixed blocks to be in eval mode
-            self.RCNN_base.eval()
-            self.RCNN_base[5].train()
-            self.RCNN_base[6].train()
+            self.RCNN_layer0.eval()
+            self.RCNN_layer1.eval()
+            self.RCNN_layer2.train()
+            self.RCNN_layer3.train()
+            self.RCNN_layer4.train()
+
+            self.RCNN_smooth1.train()
+            self.RCNN_smooth2.train()
+            self.RCNN_smooth3.train()
+
+            self.RCNN_latlayer1.train()
+            self.RCNN_latlayer2.train()
+            self.RCNN_latlayer3.train()
+
+            self.RCNN_toplayer.train()
 
             def set_bn_eval(m):
                 classname = m.__class__.__name__
                 if classname.find('BatchNorm') != -1:
                     m.eval()
 
-            self.RCNN_base.apply(set_bn_eval)
-            self.RCNN_top.apply(set_bn_eval)
+            self.RCNN_layer0.apply(set_bn_eval)
+            self.RCNN_layer1.apply(set_bn_eval)
+            self.RCNN_layer2.apply(set_bn_eval)
+            self.RCNN_layer3.apply(set_bn_eval)
+            self.RCNN_layer4.apply(set_bn_eval)
 
     def _head_to_tail(self, pool5):
-        fc7 = self.RCNN_top(pool5).mean(3).mean(2)
+        block5 = self.RCNN_top(pool5)
+        fc7 = block5.mean(3).mean(2)
         return fc7

@@ -33,8 +33,9 @@ import network
 import pretrained_utils_v2 as utils
 import torchvision
 import pickle
-
 import pdb
+import copy
+import xml.etree.ElementTree as ET
 
 try:
     xrange  # Python 2
@@ -44,6 +45,46 @@ except NameError:
 # detection: 'food', 'dish', 'outlery', 'etc'
 # classification: classes in KFood
 # food amount: 0.0 ~ 1.0
+
+def save_file_from_list(list_of_list, filename):
+    # create xml
+    anno = ET.Element('annotation')
+
+    with open(filename, 'w') as fid:
+        for item in list_of_list:
+            if len(item) == 5:
+                classname, x1, y1, x2, y2 = item
+            elif len(item) == 7:
+                classname, x1, y1, x2, y2, foodname, amount = item
+
+            obj = ET.SubElement(anno, 'object')
+
+            name = ET.SubElement(obj, 'name')
+            name.text = classname
+
+            bndbox = ET.SubElement(obj, 'bndbox')
+
+            xmin = ET.SubElement(bndbox, 'xmin')
+            xmin.text = str(x1)
+
+            ymin = ET.SubElement(bndbox, 'ymin')
+            ymin.text = str(y1)
+
+            xmax = ET.SubElement(bndbox, 'xmax')
+            xmax.text = str(x2)
+
+            ymax = ET.SubElement(bndbox, 'ymax')
+            ymax.text = str(y2)
+
+            if len(item) == 7:
+                foodname_tag = ET.SubElement(obj, 'foodname')
+                foodname_tag.text = str(foodname)
+
+                amount_tag = ET.SubElement(obj, 'amount')
+                amount_tag.text = str(amount)
+
+    ET.ElementTree(anno).write(filename)
+
 
 def parse_args():
     """
@@ -95,18 +136,22 @@ def parse_args():
     parser.add_argument('--bs', dest='batch_size',
                         help='batch_size',
                         default=1, type=int)
+    parser.add_argument('--use_FPN', dest='use_FPN', action='store_true')
     parser.add_argument('--num_save_images', dest='num_save_images', default=-1, type=int)
     parser.add_argument('--shuffle_db', dest='shuffle_db', default=False, type=bool)
     parser.add_argument('--anchors4', dest='anchors4', action='store_true')
     parser.add_argument('--ratios5', dest='ratios5', action='store_true')
     parser.add_argument('--use_share_regress', dest='use_share_regress', action='store_true')
+    parser.add_argument('--use_progress', dest='use_progress', action='store_true')
 
     parser.add_argument('--prep_type', dest='prep_type', default='caffe', type=str)
+    parser.add_argument('--att_type', dest='att_type', help='None, BAM, CBAM', default='None', type=str)
 
     parser.add_argument('--image_dir', dest='image_dir', default="")
+    parser.add_argument('--video_path', dest='video_path', default="")
     parser.add_argument('--webcam_num', dest='webcam_num', default=-1, type=int)
     parser.add_argument('--youtube_url', dest='youtube_url', default="")
-    parser.add_argument('--youtube_fpm', dest='youtube_fpm', default=1, type=int)
+    parser.add_argument('--youtube_video_fpm', dest='youtube_video_fpm', default=1, type=int)
 
     parser.add_argument('--save_result', dest='save_result', action='store_true')
     parser.add_argument('--vis', dest='vis', action='store_true')
@@ -241,26 +286,31 @@ if __name__ == '__main__':
     # path_to_model_classifier = 'output/baseline-Kfood-torchZR/senet154/senet154/model_best.pth.tar'
 
     # for github
-    path_model_detector = 'output/faster_rcnn_1_7_9999.pth'
+    path_model_detector = 'output/fpn101_1_10_9999.pth'
     path_to_model_classifier = 'output'
 
+    # fixed, to get class name
     args.dataset = 'CloudStatus_val'
     args.imdb_name2 = 'CloudTableThings_val'
     args.total_imdb_name = 'CloudStatusTableThings_val'
     args.load_name = path_model_detector
 
     args.use_share_regress = True
+    args.use_progress = True
 
-    args.net = 'resnet50'
+    args.net = 'resnet101'
     args.prep_type = 'caffe'
+    args.large_scale = True
     args.shuffle_db = True
-    # args.image_dir = 'images/OpenImageSimpleCategory'
-    # args.image_dir = 'images/MyFoodImages_Kfood'
-    # args.image_dir = 'images/MyFoodImages_Food101'
     args.cuda = True
     args.dataset_t = ''  # assign dummy naming
     args.save_result = True
+    args.use_FPN = True
 
+    # args.image_dir = 'images/OpenImageSimpleCategory'
+    # args.image_dir = 'images/MyFoodImages_Kfood'
+    # args.image_dir = 'images/MyFoodImages_Food101'
+    # args.image_dir = 'images/YM/JPEGImages/45'
 
     # Load food classifier
     # possible dbname='FoodX251', 'Food101', 'Kfood'
@@ -271,8 +321,8 @@ if __name__ == '__main__':
     print('Called with args:')
 
     # args = set_dataset_args(args, test=True)
-    args.imdb_name = args.imdbval_name = "OpenImageSimpleCategory_test"
-    args.set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+    # args.imdb_name = args.imdbval_name = "OpenImageSimpleCategory_test"
+    # args.set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
 
     if args.large_scale:
         args.cfg_file = "cfgs/{}_ls.yml".format(args.net)
@@ -321,20 +371,34 @@ if __name__ == '__main__':
     classes_total = get_class_list(args.total_imdb_name)
 
     # initilize the network here.
-    if args.net == 'vgg16':
-        from model.faster_rcnn.vgg16 import vgg16
-        fasterRCNN = vgg16(pascal_classes, use_pretrained=False, class_agnostic=args.class_agnostic)
-    elif 'resnet' in args.net:
-        from model.faster_rcnn.resnet_multi import resnet
+    if args.use_FPN:
+        from model.fpn.resnet_multi_CBAM import resnet
+
         if args.net == 'resnet101':
-            fasterRCNN = resnet(classes0, classes1, num_layers=101, use_pretrained=False, class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
+            fasterRCNN = resnet(classes0, classes1, use_pretrained=False, num_layers=101,
+                                class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress,
+                                use_progress=args.use_progress, att_type=args.att_type)
         elif args.net == 'resnet50':
-            fasterRCNN = resnet(classes0, classes1, num_layers=50, use_pretrained=False, class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
-        elif args.net == 'resnet152':
-            fasterRCNN = resnet(classes0, classes1, num_layers=152, use_pretrained=False, class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress)
+            fasterRCNN = resnet(classes0, classes1, use_pretrained=False, num_layers=50,
+                                class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress,
+                                use_progress=args.use_progress, att_type=args.att_type)
+        else:
+            print("network is not defined")
+            pdb.set_trace()
     else:
-        print("network is not defined")
-        pdb.set_trace()
+        from model.faster_rcnn.resnet_multi import resnet
+
+        if args.net == 'resnet101':
+            fasterRCNN = resnet(classes0, classes1, use_pretrained=False, num_layers=101,
+                                class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress,
+                                use_progress=args.use_progress)
+        elif args.net == 'resnet50':
+            fasterRCNN = resnet(classes0, classes1, use_pretrained=False, num_layers=50,
+                                class_agnostic=args.class_agnostic, use_share_regress=args.use_share_regress,
+                                use_progress=args.use_progress)
+        else:
+            print("network is not defined")
+            pdb.set_trace()
 
     fasterRCNN.create_architecture()
 
@@ -406,6 +470,11 @@ if __name__ == '__main__':
         else:
             total_num_images = args.num_save_images
             print('args.num_save_images: ', total_num_images)
+    elif args.video_path != '':
+        cap = cv2.VideoCapture(args.video_path)
+        total_num_images = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # fps = cap.get(cv2.CAP_PROP_FPS)
+        pathOutputSaveImages = os.path.join(pathOutputSave, 'result', args.video_path.split('/')[-1])
 
     elif args.webcam_num >= 0:
         cap = cv2.VideoCapture(args.webcam_num)
@@ -432,6 +501,8 @@ if __name__ == '__main__':
         print('make a directory for save images: %s' % pathOutputSaveImages)
         os.makedirs(pathOutputSaveImages)
 
+    print('\n Result images are stored in %s' % pathOutputSaveImages)
+
     print('Loaded Photo: {} images.'.format(total_num_images))
 
     for cur_index_image in range(total_num_images):
@@ -445,11 +516,11 @@ if __name__ == '__main__':
                 raise RuntimeError("Webcam could not open. Please check connection.")
             ret, frame = cap.read()     # read bgr (default)
             im_in = np.array(frame)
-        elif args.youtube_url != '':
+        elif args.youtube_url != '' or args.video_path != '':
             if not cap.isOpened():
                 raise RuntimeError("Youtube could not open. Please check connection.")
 
-            skip_seconds = int(60 / args.youtube_fpm)
+            skip_seconds = int(60 / args.youtube_video_fpm)
 
             # cap.set(cv2.CAP_PROP_POS_FRAMES, int(cur_index_image * fps * skip_seconds))       # cannot get correct frame because of high compressed video and key frame tech.
             cap.set(cv2.CAP_PROP_POS_MSEC, int(cur_index_image * skip_seconds * 1000))
@@ -485,6 +556,8 @@ if __name__ == '__main__':
             # im_in = np.concatenate((im_in, im_in, im_in), axis=2)
 
         im = im_in  # bgr
+        # im = im[1080:, 384:-384, :]
+
 
         blobs, im_scales = _get_image_blob(im)
         assert len(im_scales) == 1, "Only single-image batch implemented"
@@ -504,9 +577,10 @@ if __name__ == '__main__':
         # pdb.set_trace()
         det_tic = time.time()
 
-        rois0, cls_prob0, bbox_pred0, _, _, _, _, _, share_pred0, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=0)
-        rois1, cls_prob1, bbox_pred1, _, _, _, _, _, share_pred1, _ = fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=1)
-
+        rois0, cls_prob0, bbox_pred0, _, _, _, _, _, share_pred0, _, progress_pred0, _ = \
+            fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=0)
+        rois1, cls_prob1, bbox_pred1, _, _, _, _, _, share_pred1, _, _, _ = \
+            fasterRCNN(im_data, im_info, gt_boxes, num_boxes, flow_id=1)
 
         # rois0 # [1, 300, 5]
         rois = torch.cat((rois0, rois1), dim=1)
@@ -515,9 +589,10 @@ if __name__ == '__main__':
         aaaa = torch.ones((share_pred0.shape[0], rois0.shape[1], 1)).cuda() * share_pred1
         share_pred = torch.cat((share_pred0, aaaa), dim=1)
 
+        progress_pred = progress_pred0
+
         # cls_prob0 # [1, 300, 3]
         # bbox_pred0 # [1, 300, 12 (3x4)
-
         cls_prob = torch.zeros((cls_prob0.shape[0],
                                 cls_prob0.shape[1]+cls_prob1.shape[1],
                                 len(classes_total))).cuda()
@@ -540,6 +615,8 @@ if __name__ == '__main__':
 
         scores = cls_prob.data
         boxes = rois.data[:, :, 1:5]
+
+        estimated_output = []
 
         if cfg.TEST.BBOX_REG:
             # Apply bounding-box regression deltas
@@ -592,6 +669,8 @@ if __name__ == '__main__':
             else:
                 im2show = np.copy(im)
                 im_scale = 1.0
+
+            im2show_wobbox = copy.copy(im2show)
 
         im_pil = torchvision.transforms.ToPILImage(mode=None)(im[:,:,::-1])
         im_width, im_height = im_pil.size
@@ -679,6 +758,9 @@ if __name__ == '__main__':
                                                                  box_color=list_box_color[j], text_color=(255, 255, 255),
                                                                  text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
                                                                  draw_score=False, draw_text_out_of_box=True)
+
+                            estimated_output.append([classes_total[j], int(bbox_draw[0, 0]), int(bbox_draw[0, 1]), int(bbox_draw[0, 2]), int(bbox_draw[0, 3]),
+                                                     food_class[0], bbox_draw[0, 5]])
                 else:
                     if args.vis or args.save_result:
                         bbox_draw = cls_dets.detach().cpu().numpy()
@@ -688,6 +770,9 @@ if __name__ == '__main__':
                                                              box_color=list_box_color[j], text_color=(255, 255, 255),
                                                              text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
                                                              draw_score=False, draw_text_out_of_box=True)
+
+                        estimated_output.append(
+                            [classes_total[j], int(bbox_draw[0, 0]), int(bbox_draw[0, 1]), int(bbox_draw[0, 2]), int(bbox_draw[0, 3])])
 
 
 
@@ -707,9 +792,18 @@ if __name__ == '__main__':
         if args.save_result:
             if args.image_dir != '':
                 result_path = os.path.join(pathOutputSaveImages, imglist[cur_index_image][:-4] + "_det.jpg")
+                result_path_wobbox = os.path.join(pathOutputSaveImages, imglist[cur_index_image][:-4] + "_det_wobbox.jpg")
+                result_path_txt = os.path.join(pathOutputSaveImages,
+                                                  imglist[cur_index_image][:-4] + "_det_wobbox.xml")
             else:
                 result_path = os.path.join(pathOutputSaveImages, "%05d_det.jpg" % cur_index_image)
+                result_path_wobbox = os.path.join(pathOutputSaveImages, "%05d_det_wobbox.jpg" % cur_index_image)
+                result_path_txt = os.path.join(pathOutputSaveImages, "%05d_det_wobbox.xml" % cur_index_image)
+
             cv2.imwrite(result_path, im2show)
+            cv2.imwrite(result_path_wobbox, im2show_wobbox)
+
+            save_file_from_list(estimated_output, result_path_txt)
 
         if args.vis:
             # im2showRGB = cv2.cvtColor(im2show, cv2.COLOR_BGR2RGB)

@@ -448,9 +448,9 @@ def vis_detections_korean_ext2_wShare(im, class_name, dets, box_color=(0, 0, 204
             im_draw.rectangle(bbox, outline=box_color, width=3)
 
             if draw_score:
-                strText = '%s: %.2f, %.2f' % (class_name, score, share)
+                strText = '%s(%.2f) %.2f' % (class_name, score, share)
             else:
-                strText = '%s, %.2f' % (class_name, share)
+                strText = '%s %.2f' % (class_name, share)
 
             text_w, text_h = font.getsize(strText)
 

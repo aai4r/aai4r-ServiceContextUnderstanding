@@ -38,37 +38,38 @@ except NameError:
 # <<<< obsolete
 
 class CloudStatus(imdb):
-    def __init__(self, image_set, devkit_path=None):
-        imdb.__init__(self, 'CloudStatus_' + image_set)
+    def __init__(self, image_set, angle_location, tag_loc, tag_angle, devkit_path=None):
+        imdb.__init__(self, 'CloudStatus_%s_%s_%s_%s' % (image_set, angle_location, tag_loc, tag_angle))
         self._year = 2007
         self._image_set = image_set
+        self._angle_location = angle_location
+        self._tag_loc = tag_loc
+        self._tag_angle = tag_angle
         self._devkit_path = cfg_d.CloudStatus
         self._data_path = os.path.join(self._devkit_path)
-        self.food_list = ['korean',
-                          'japanese',
-                          'chinese',
-                          'western',
-                          'fastfood',
-                          'drink',
-                          'source',
-                         ]
+
         self._original_classes = ('__background__',  # always index 0
-                         'korean',
-                         'japanese',
-                         'chinese',
-                         'western',
-                         'fastfood',
-                         'drink',
-                         'source',
-                         'etc',
+                         '한식',
+                         '일식',
+                         '중식',
+                         '양식',
+                         '패스트푸드',
+                         '음료',
+                         '소스',
+                         '기타',
                          )
         self._classes = ('__background__',  # always index 0
                          'food',
                          'dish',
                          )
+        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+
         self.tag_keyword = 'category'   # 'name'
         self.tag_share_keyword = 'share'
-        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+
+        self._progress_classes = ('before', 'during', 'after')
+        self._progress_class_to_ind = dict(zip(self._progress_classes, xrange(len(self._progress_classes))))
+
         self._image_ext = ['.jpg', '.png']
         self._image_index = self._load_image_set_index()
         self._roidb_handler = self.gt_roidb
@@ -118,8 +119,15 @@ class CloudStatus(imdb):
         Load the indexes listed in this dataset's image set file.
         """
         # Example path to image set file:
-        image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
-                                      self._image_set + '.txt')
+        if self._angle_location is not None:
+            image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
+                                          '%s_%s' % (self._image_set, self._angle_location) + '.txt')
+        else:
+            if self._tag_loc is None and self._tag_angle is None:
+                image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main', '%s_all.txt' % self._image_set)
+            else:
+                image_set_file = os.path.join(self._data_path, 'ImageSets', 'Main',
+                                              '%s_%s_%s' % (self._image_set, self._tag_loc, self._tag_angle) + '.txt')
         assert os.path.exists(image_set_file), \
             'Path does not exist: {}'.format(image_set_file)
         with open(image_set_file) as f:
@@ -227,21 +235,27 @@ class CloudStatus(imdb):
         """
         filename = os.path.join(self._data_path, 'Annotations', index + '.xml')
 
-        tree = ET.parse(filename)
+        # tree = ET.parse(filename)
+        _parser = ET.XMLParser(encoding='utf-8')
+        tree = ET.parse(filename, _parser)
 
-        if False:
+        if True:
             img_size = tree.find('size')
             img_width = int(img_size.find('width').text)
             img_height = int(img_size.find('height').text)
-            print(img_width, img_height)
+            # print(img_width, img_height)
         else:
             import cv2
             im_temp = cv2.imread(os.path.join(self._data_path, 'JPEGImages', index + '.jpg'))
-            img_height, img_width, img_ch = im_temp.shape
+            img_height, img_width, _ = im_temp.shape
             # print(img_width, img_height)
+
+        progress = tree.find('progress').text
+        progress_index = self._progress_class_to_ind[progress]
 
         objs = tree.findall('object')
 
+        # count the number of objects
         count = 0
         for ix, obj in enumerate(objs):
             if obj.find(self.tag_keyword).text.strip() in self._original_classes:
@@ -271,39 +285,42 @@ class CloudStatus(imdb):
 
             # x1, x2 should be 0 ~ (width-1)
             # y1, y2 should be 0 ~ (height-1)
-            # if x1 < 0:
-            #     x1 = float(0)
-            # if y1 < 0:
-            #     y1 = float(0)
-            # if x2 > img_width-1:
-            #     x2 = float(img_width-1)
-            # if y2 > img_height-1:
-            #     y2 = float(img_height-1)
+            if x1 < 0:
+                x1 = float(0)
+                print('%s has (x1 < 0)' % filename, x1)
+            if y1 < 0:
+                y1 = float(0)
+                print('%s has (y1 < 0)' % filename, y1)
+            if x2 > img_width-1:
+                x2 = float(img_width-1)
+                print('%s has (x2 > img_width-1):' % filename, x2, img_width-1)
+            if y2 > img_height-1:
+                y2 = float(img_height-1)
+                print('%s has (y2 > img_height-1)' % filename, y2, img_height-1)
 
             diffc = obj.find('difficult')
             difficult = 0 if diffc == None else int(diffc.text)
-
-            try:
-                obj_category = obj.find(self.tag_keyword).text.strip()
-                obj_name = obj.find('name').text.strip()
-
-                if obj_category in self.food_list:
-                    cls = self._class_to_ind['food']
-                else:
-                    if obj_category == 'etc' and obj_name == '빈용기':
-                        cls = self._class_to_ind['dish']
-                    else:
-                        cls = self._class_to_ind['food']
-
-                # print(obj_category, obj_name, self._classes[cls])
-            except:
-                raise AssertionError('%s is not in list' % (obj.find(self.tag_keyword).text.strip()))
 
             try:
                 share = int(obj.find(self.tag_share_keyword).text.strip().split('%')[0])
             except:
                 print(filename)
                 raise AssertionError('%s is not in list' % (obj.find(self.tag_share_keyword).text.strip().split('%')[0]))
+
+            try:
+                obj_category = obj.find(self.tag_keyword).text.strip()
+                obj_name = obj.find('name').text.strip()
+
+                if obj_name == '빈용기' or obj_name == '빈그릇':
+                    cls = self._class_to_ind['dish']
+                elif share == 0:
+                    cls = self._class_to_ind['dish']
+                else:
+                    cls = self._class_to_ind['food']
+
+                # print(obj_category, obj_name, self._classes[cls])
+            except:
+                raise AssertionError('%s is not in list' % (obj.find(self.tag_keyword).text.strip()))
 
             gt_share[count] = share
             ishards[count] = difficult
@@ -321,7 +338,8 @@ class CloudStatus(imdb):
                 'gt_overlaps': overlaps,
                 'flipped': False,
                 'seg_areas': seg_areas,
-                'gt_share': gt_share}
+                'gt_share': gt_share,
+                'progress_index': progress_index}
 
     def _get_comp_id(self):
         comp_id = (self._comp_id + '_' + self._salt if self.config['use_salt']
@@ -356,16 +374,31 @@ class CloudStatus(imdb):
                                        dets[k, 0] + 1, dets[k, 1] + 1,
                                        dets[k, 2] + 1, dets[k, 3] + 1))
 
-    def _do_python_eval(self, output_dir='output'):
+    def _do_python_eval(self, output_dir='output', modify_input=False):
         annopath = os.path.join(
             self._devkit_path,
             'Annotations',
             '{:s}.xml')
-        imagesetfile = os.path.join(
-            self._devkit_path,
-            'ImageSets',
-            'Main',
-            self._image_set + '.txt')
+        if self._angle_location is not None:
+            imagesetfile = os.path.join(
+                self._devkit_path,
+                'ImageSets',
+                'Main',
+                self._image_set + '_' + self._angle_location + '.txt')
+        else:
+            if self._tag_loc is None and self._tag_angle is None:
+                imagesetfile = os.path.join(
+                    self._devkit_path,
+                    'ImageSets',
+                    'Main',
+                    self._image_set + '_all.txt')
+            else:
+                imagesetfile = os.path.join(
+                    self._devkit_path,
+                    'ImageSets',
+                    'Main',
+                    self._image_set + '_' + self._tag_loc + '_' + self._tag_angle + '.txt')
+
         cachedir = os.path.join(self._devkit_path, 'annotations_cache')
         aps = []
         # The PASCAL VOC metric changed in 2010
@@ -379,7 +412,7 @@ class CloudStatus(imdb):
             filename = self._get_voc_results_file_template(output_dir).format(cls)
             rec, prec, ap = voc_eval(
                 filename, annopath, imagesetfile, cls, cachedir, ovthresh=0.5,
-                use_07_metric=use_07_metric)
+                use_07_metric=use_07_metric, modify_input=modify_input)
             aps += [ap]
             print('AP for {} = {:.4f}'.format(cls, ap))
             with open(os.path.join(output_dir,'eval_result.txt'),'a') as result_f:
@@ -418,9 +451,9 @@ class CloudStatus(imdb):
         print('Running:\n{}'.format(cmd))
         status = subprocess.call(cmd, shell=True)
 
-    def evaluate_detections(self, all_boxes, output_dir):
+    def evaluate_detections(self, all_boxes, output_dir, modify_input=False):
         self._write_voc_results_file(all_boxes, output_dir)
-        self._do_python_eval(output_dir)
+        self._do_python_eval(output_dir, modify_input=modify_input)
         if self.config['matlab_eval']:
             self._do_matlab_eval(output_dir)
         if self.config['cleanup']:

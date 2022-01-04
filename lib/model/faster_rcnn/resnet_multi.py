@@ -222,7 +222,8 @@ def resnet152(pretrained=False):
 
 class resnet(_fasterRCNN):
     def __init__(self, classes0, classes1, use_pretrained, freeze_base=False, freeze_top=False, pretrained_path=None,
-                 num_layers=101, class_agnostic=False, use_share_regress=False):
+                 num_layers=101,
+                 class_agnostic=False, use_share_regress=False, use_progress=False):
         self.pretrained = use_pretrained
         self.model_path = pretrained_path  # 'data/pretrained_model/resnet101_caffe.pth'
         self.dout_base_model = 1024
@@ -231,8 +232,10 @@ class resnet(_fasterRCNN):
         self.freeze_top = freeze_top
         self.num_layers = num_layers
         self.use_share_regress = use_share_regress
+        self.use_progress = use_progress
 
-        _fasterRCNN.__init__(self, classes0, classes1, class_agnostic, use_share_regress=self.use_share_regress)
+        _fasterRCNN.__init__(self, classes0, classes1, class_agnostic,
+                             use_share_regress=self.use_share_regress, use_progress=self.use_progress)
 
     def _init_modules(self):
         if self.num_layers == 101:
@@ -242,24 +245,19 @@ class resnet(_fasterRCNN):
         else:
             raise AssertionError('res-%d is not implemented' % self.num_layers)
 
-        if self.pretrained == True:
+        if self.pretrained:
             print("Loading pretrained weights from %s" % (self.model_path))
             old_state_dict = torch.load(self.model_path)
             new_state_dict = resnet.state_dict()  # all things are copied, key and value of target net
 
             # change pretrained-model-name to match with the FRCN
             for key, value in old_state_dict.items():  # ex: encoder.conv1. weight, .. projector.0.weight
-                if 'encoder' in key:
-                    new_key = key.replace('encoder.', '')
-                else:
-                    new_key = key  # this could be 'conv1' or 'projector'
+                new_key = key  # this could be 'conv1' or 'projector'
 
                 if new_key in new_state_dict:
                     new_state_dict[new_key] = value
                 else:
-                    print('\t[%s] key is ignored because encoder is not included' % key)
-
-            # pdb.set_trace()
+                    print('\t[%s] key is ignored because it is not included in resnet' % key)
 
             resnet.load_state_dict({k: v for k, v in new_state_dict.items() if k in resnet.state_dict()})
 

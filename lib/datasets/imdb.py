@@ -97,7 +97,7 @@ class imdb(object):
     def default_roidb(self):
         raise NotImplementedError
 
-    def evaluate_detections(self, all_boxes, output_dir=None):
+    def evaluate_detections(self, all_boxes, output_dir=None, modify_input=False):
         """
         all_boxes is a list of length number-of-classes.
         Each list element is a list of length number-of-images.
@@ -144,6 +144,9 @@ class imdb(object):
 
             if 'gt_share' in self.roidb[i].keys():
                 entry['gt_share'] = self.roidb[i]['gt_share']
+
+            if 'progress_index' in self.roidb[i].keys():
+                entry['progress_index'] = self.roidb[i]['progress_index']
 
             self.roidb.append(entry)
         self._image_index = self._image_index * 2

@@ -57,9 +57,11 @@ __C.TRAIN.SNAPSHOT_KEPT = 3
 
 # The time interval for saving tensorflow summaries
 __C.TRAIN.SUMMARY_INTERVAL = 180
+
 # Scale to use during training (can list multiple scales)
 # The scale is the pixel size of an image's shortest side
 __C.TRAIN.SCALES = (600,)
+
 # Max pixel size of the longest side of a scaled input image
 __C.TRAIN.MAX_SIZE = 1200
 
@@ -193,6 +195,7 @@ __C.TEST.RPN_PRE_NMS_TOP_N = 6000
 
 ## Number of top scoring boxes to keep after applying NMS to RPN proposals
 __C.TEST.RPN_POST_NMS_TOP_N = 300
+
 # Proposal height and width both need to be greater than RPN_MIN_SIZE (at orig image scale)
 __C.TEST.RPN_MIN_SIZE = 16
 
@@ -200,7 +203,7 @@ __C.TEST.RPN_MIN_SIZE = 16
 # See report for details
 __C.TEST.MODE = 'nms'
 
-#f Only useful when TEST.MODE is 'top', specifies the number of top proposals to select
+# Only useful when TEST.MODE is 'top', specifies the number of top proposals to select
 __C.TEST.RPN_TOP_N = 5000
 
 # For domain adaptation
@@ -292,7 +295,7 @@ __C.POOLING_MODE = 'crop'
 __C.POOLING_SIZE = 7
 
 # Maximal number of gt rois in an image during Training
-__C.MAX_NUM_GT_BOXES = 20
+__C.MAX_NUM_GT_BOXES = 50    # default 20
 
 # Anchor scales for RPN
 __C.ANCHOR_SCALES = [8,16,32]
@@ -303,9 +306,18 @@ __C.ANCHOR_RATIOS = [0.5,1,2]
 # Feature stride for RPN
 __C.FEAT_STRIDE = [16, ]
 
+# Anchor scales for RPN_FPN
+__C.FPN_ANCHOR_SCALES = [32, 64, 128, 256, 512]
+# Feature stride for RPN_FPN
+__C.FPN_FEAT_STRIDES = [4, 8, 16, 32, 64]
+# Anchor stride for RPN_FPN
+__C.FPN_ANCHOR_STRIDE = 1
+
 __C.CUDA = False
 
 __C.CROP_RESIZE_WITH_MAX_POOL = True
+
+# __C.HAS_MASK = True #from FPN
 
 import pdb
 def get_output_dir(imdb, weights_filename):

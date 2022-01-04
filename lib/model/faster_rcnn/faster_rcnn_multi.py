@@ -20,9 +20,11 @@ import time
 import pdb
 from model.utils.net_utils import _smooth_l1_loss, _crop_pool_layer, _affine_grid_gen, _affine_theta
 
+# flowid=0 only has share_regress and progress
+
 class _fasterRCNN(nn.Module):
     """ faster RCNN """
-    def __init__(self, classes0, classes1, class_agnostic, use_share_regress=False):
+    def __init__(self, classes0, classes1, class_agnostic, use_share_regress=False, use_progress=False):
         super(_fasterRCNN, self).__init__()
         self.classes0 = classes0
         self.classes1 = classes1
@@ -40,22 +42,16 @@ class _fasterRCNN(nn.Module):
         self.RCNN_proposal_target1 = _ProposalTargetLayer(self.n_classes1)
 
         self.use_share_regress = use_share_regress
+        self.use_progress = use_progress
 
-        # pytorch 0.4
-        # self.RCNN_roi_pool = _RoIPooling(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
-        # self.RCNN_roi_align = RoIAlignAvg(cfg.POOLING_SIZE, cfg.POOLING_SIZE, 1.0/16.0)
-
-        # pytorch 1.0
-        # self.RCNN_roi_pool = ROIPool((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
-        # self.RCNN_roi_align = ROIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0, 0)
-
-        # torchvision.ops
-        # self.RCNN_roi_pool = ROIPool((cfg.POOLING_SIZE, cfg.POOLING_SIZE), 1.0/16.0)
         self.RCNN_roi_align = RoIAlign((cfg.POOLING_SIZE, cfg.POOLING_SIZE), spatial_scale=1.0/16.0, sampling_ratio=0)
         if self.use_share_regress:
             self.RCNN_share_regress = nn.Linear(2048, 1)
 
-    def forward(self, im_data, im_info, gt_boxes, num_boxes, flow_id):
+        if self.use_progress:
+            self.fc_progress = nn.Linear(1024, 3)
+
+    def forward(self, im_data, im_info, gt_boxes, num_boxes, flow_id, gt_progress=-1, use_gt_bbox_in_rpn=False, al_mode=False, class_weight=None):
         batch_size = im_data.size(0)
 
         im_info = im_info.data
@@ -73,11 +69,23 @@ class _fasterRCNN(nn.Module):
                 rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn0(base_feat, im_info, gt_boxes[:, :, :5], num_boxes)
             elif flow_id == 1:
                 rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn1(base_feat, im_info, gt_boxes[:, :, :5], num_boxes)
-        else:
-            if flow_id == 0:
-                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn0(base_feat, im_info, gt_boxes, num_boxes)
-            elif flow_id == 1:
-                rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn1(base_feat, im_info, gt_boxes, num_boxes)
+        else:   # eval mode
+            if use_gt_bbox_in_rpn:
+                rois = torch.zeros((1, num_boxes, 5)).cuda()
+                rois[0, :, 1:] = gt_boxes[0, :num_boxes.item(), :4]
+            else:
+                if al_mode:
+                    if flow_id == 0:
+                        rois, rpn_loss_cls, rpn_loss_bbox, rpn_cls_prob = self.RCNN_rpn0(base_feat, im_info, gt_boxes, num_boxes,
+                                                                                        return_rpn_cls_prob=True)
+                    elif flow_id == 1:
+                        rois, rpn_loss_cls, rpn_loss_bbox, rpn_cls_prob = self.RCNN_rpn1(base_feat, im_info, gt_boxes, num_boxes,
+                                                                                        return_rpn_cls_prob=True)
+                else:
+                    if flow_id == 0:
+                        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn0(base_feat, im_info, gt_boxes, num_boxes)
+                    elif flow_id == 1:
+                        rois, rpn_loss_cls, rpn_loss_bbox = self.RCNN_rpn1(base_feat, im_info, gt_boxes, num_boxes)
 
         # print('RCNN_rpn.rois: ', rois[:, :10, :])
         # gt_boxes.shape [1, 30, 5]
@@ -117,17 +125,11 @@ class _fasterRCNN(nn.Module):
         # do roi pooling based on predicted rois
 
         if cfg.POOLING_MODE == 'align':
-            # pdb.set_trace()
             pooled_feat = self.RCNN_roi_align(base_feat, rois.view(-1, 5))
         elif cfg.POOLING_MODE == 'pool':
             pooled_feat = self.RCNN_roi_pool(base_feat, rois.view(-1, 5))
         else:
             raise AssertionError('selected cfg.POOLING_MODE is unsupported: ', cfg.POOLING_MODE)
-
-        # print('base_feat: ', base_feat)
-        # print('rois: ', rois[:, :10, :])
-        # print('pooled_feat: ', pooled_feat)
-        # pdb.set_trace()
 
         # feed pooled features to top model
         pooled_feat = self._head_to_tail(pooled_feat)
@@ -137,7 +139,6 @@ class _fasterRCNN(nn.Module):
         if flow_id == 0:
             if self.use_share_regress:
                 share_score_pred = self.RCNN_share_regress(pooled_feat)
-                # share_pred = F.sigmoid(share_score_pred)  # deprecated
                 share_pred = torch.sigmoid(share_score_pred)
                 share_pred = share_pred.squeeze(1)
 
@@ -162,7 +163,10 @@ class _fasterRCNN(nn.Module):
 
         if self.training:
             # classification loss
-            RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
+            if class_weight is None:
+                RCNN_loss_cls = F.cross_entropy(cls_score, rois_label)
+            else:
+                RCNN_loss_cls = F.cross_entropy(cls_score, rois_label, weight=class_weight)
 
             # bounding box regression L1 loss
             RCNN_loss_bbox = _smooth_l1_loss(bbox_pred, rois_target, rois_inside_ws, rois_outside_ws)
@@ -170,17 +174,12 @@ class _fasterRCNN(nn.Module):
             # choose rois_lable, batch, rois_label
             if flow_id == 0 and self.use_share_regress:
                 fg_idx = rois_label != 0
-                share_loss = F.mse_loss(share_pred[fg_idx], rois_share[0, fg_idx]*0.01)
+                num_fg_idx = torch.sum(fg_idx)
 
-            # # pdb.set_trace()
-            # print('rcnn_loss_cls: ', RCNN_loss_cls.item())
-            # print('rcnn_loss_cls.cls_score: ', cls_score[:20, :])
-            # print('rcnn_loss_cls.rois_label: ', rois_label[:20])
-
-            # print('rcnn_loss_bbox: ', RCNN_loss_bbox.item())
-            # print('rcnn_loss_bbox.rois_target: ', rois_target[:20, :])
-            # print('rcnn_loss_bbox.bbox_pred: ', bbox_pred[:20, :])
-            # print('\n\n')
+                if num_fg_idx > 0:
+                    share_loss = F.mse_loss(share_pred[fg_idx], rois_share[0, fg_idx]*0.01)
+                else:
+                    share_loss = torch.zeros(1)
 
         cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
         bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
@@ -189,7 +188,28 @@ class _fasterRCNN(nn.Module):
         else:
             share_pred = 0
 
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, share_pred, share_loss
+        if flow_id == 0 and self.use_progress:
+            # base_feat: [1, 1024, H, W]
+            # base_feat_pooled: [1, 1024]
+            # progress_score: [1, 3]
+            base_feat_pooled = base_feat.mean(3).mean(2)
+            progress_score = self.fc_progress(base_feat_pooled)
+            progress_pred = F.softmax(progress_score, 1)
+
+            if self.training:
+                progress_loss = F.cross_entropy(progress_score, gt_progress)
+            else:
+                progress_loss = torch.zeros(1)
+        else:
+            progress_pred = None
+            progress_loss = torch.zeros(1)
+
+        if al_mode:
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, \
+                   share_pred, share_loss, progress_pred, progress_loss, base_feat, rpn_cls_prob
+        else:
+            return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, RCNN_loss_cls, RCNN_loss_bbox, rois_label, \
+                   share_pred, share_loss, progress_pred, progress_loss
 
     def _init_weights(self):
         def normal_init(m, mean, stddev, truncated=False):
@@ -217,6 +237,9 @@ class _fasterRCNN(nn.Module):
 
         if self.use_share_regress:
             normal_init(self.RCNN_share_regress, 0, 0.001, cfg.TRAIN.TRUNCATED)
+
+        if self.use_progress:
+            normal_init(self.fc_progress, 0, 0.001, cfg.TRAIN.TRUNCATED)
 
     def create_architecture(self):
         self._init_modules()
