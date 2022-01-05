@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import _init_paths
 import requests
 import json
 from PIL import Image
@@ -43,7 +44,7 @@ import pdb
 
 class FoodClassifier:
     # eval_crop_type: 'TenCrop' or 'CenterCrop'
-    def __init__(self, net, dbname, eval_crop_type, ck_file_folder, use_cuda=True):
+    def __init__(self, net, dbname, eval_crop_type, ck_file_folder, use_cuda=True, pretrained=True):
         self.eval_crop_type = eval_crop_type
         # load class info
         path_class_to_idx = os.path.join(ck_file_folder, 'class_info_%s.pkl' % dbname)
@@ -57,9 +58,15 @@ class FoodClassifier:
         self.idx_to_class = dict((v, k) for k, v in self.class_to_idx.items())
 
         # create model
-        self.model = network.pret_torch_nets(model_name=net, pretrained=True, class_num=len(self.class_to_idx))
-        self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type,
-                                          rescale_input_size=1.0)
+        self.model = network.pret_torch_nets(model_name=net, pretrained=pretrained, class_num=len(self.class_to_idx))
+        if pretrained == False:
+            self.model.model.input_size = [3, 224, 224]
+            self.model.model.input_space = 'RGB'
+            self.model.model.input_range = [0, 1]
+            self.model.model.mean = [0.485, 0.456, 0.406]
+            self.model.model.std = [0.229, 0.224, 0.225]
+        self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type, rescale_input_size=1.0)
+
         if use_cuda is False:
             checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)), map_location=torch.device('cpu'))
         else:
@@ -83,7 +90,7 @@ class FoodDetector(object):
 
     def load(self, path, use_cuda):
         # define options
-        path_model_detector = os.path.join(path, 'faster_rcnn_1_7_9999.pth')    # model for detector (food, tableware, drink)
+        path_model_detector = os.path.join(path, 'fpn101_1_10_9999.pth')    # model for detector (food, tableware, drink)
 
         dataset = 'CloudStatus_val'
         imdb_name2 = 'CloudTableThings_val'
@@ -91,12 +98,12 @@ class FoodDetector(object):
         load_name = path_model_detector
 
         self.use_share_regress = True
+        self.use_progress = True
 
-        net = 'resnet50'
-        prep_type = 'caffe'
+        net = 'resnet101'
         self.cuda = use_cuda
         self.class_agnostic = False
-        dataset_t = ''  # assign dummy naming
+        self.att_type = 'None'
 
         self.vis = True # generate debug images
 
@@ -104,16 +111,15 @@ class FoodDetector(object):
         # possible dbname='FoodX251', 'Food101', 'Kfood'
         # possible eval_crop_type='CenterCrop', 'TenCrop'
         self.food_classifier = FoodClassifier(net='senet154',
-                                         dbname='Kfood',
-                                         eval_crop_type='CenterCrop',
-                                         ck_file_folder=path,
-                                         use_cuda=use_cuda)
+                                              dbname='Kfood',
+                                              eval_crop_type='CenterCrop',
+                                              ck_file_folder=path,
+                                              use_cuda=use_cuda,
+                                              pretrained=False)
 
-        # print('Called with args:')
-        # args = set_dataset_args(args, test=True)
-        imdb_name = imdbval_name = "OpenImageSimpleCategory_test"
-        set_cfgs = ['ANCHOR_SCALES', '[8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
-        cfg_file = os.path.join(path, '{}.yml'.format(net))
+        cfg_file = os.path.join(path, '{}_ls.yml'.format(net))
+        set_cfgs = ['ANCHOR_SCALES', '[4, 8, 16, 32]', 'ANCHOR_RATIOS', '[0.5,1,2]', 'MAX_NUM_GT_BOXES', '30']
+
 
         if cfg_file is not None:
             cfg_from_file(cfg_file)
@@ -143,8 +149,10 @@ class FoodDetector(object):
         self.classes1 = self.get_class_list(imdb_name2)
         self.classes_total = self.get_class_list(total_imdb_name)
 
-        from model.faster_rcnn.resnet_multi import resnet
-        self.fasterRCNN = resnet(self.classes0, self.classes1, num_layers=50, use_pretrained=False, class_agnostic=self.class_agnostic, use_share_regress=self.use_share_regress)
+        from model.fpn.resnet_multi_CBAM import resnet
+        self.fasterRCNN = resnet(self.classes0, self.classes1, use_pretrained=False, num_layers=101,
+                            class_agnostic=self.class_agnostic, use_share_regress=self.use_share_regress,
+                            use_progress=self.use_progress, att_type=self.att_type)
 
         self.fasterRCNN.create_architecture()
 
@@ -203,7 +211,7 @@ class FoodDetector(object):
         else:
             im = im_in
 
-        blobs, im_scales = self._get_image_blob(im)
+        blobs, im_scales = self._get_image_blob(im)     # prep_type = 'caffe' is applied
         assert len(im_scales) == 1, "Only single-image batch implemented"
         im_blob = blobs
         im_info_np = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
@@ -221,8 +229,10 @@ class FoodDetector(object):
         # pdb.set_trace()
         det_tic = time.time()
 
-        rois0, cls_prob0, bbox_pred0, _, _, _, _, _, share_pred0, _ = self.fasterRCNN(self.im_data, self.im_info, self.gt_boxes, self.num_boxes, flow_id=0)
-        rois1, cls_prob1, bbox_pred1, _, _, _, _, _, share_pred1, _ = self.fasterRCNN(self.im_data, self.im_info, self.gt_boxes, self.num_boxes, flow_id=1)
+        rois0, cls_prob0, bbox_pred0, _, _, _, _, _, share_pred0, _, progress_pred0, _ = \
+            self.fasterRCNN(self.im_data, self.im_info, self.gt_boxes, self.num_boxes, flow_id=0)
+        rois1, cls_prob1, bbox_pred1, _, _, _, _, _, share_pred1, _, _, _ = \
+            self.fasterRCNN(self.im_data, self.im_info, self.gt_boxes, self.num_boxes, flow_id=1)
 
 
         # rois0 # [1, 300, 5]
@@ -231,6 +241,8 @@ class FoodDetector(object):
         # share_pred0 # [1, 300, 1]
         aaaa = torch.ones((share_pred0.shape[0], rois0.shape[1], 1)).cuda() * share_pred1
         share_pred = torch.cat((share_pred0, aaaa), dim=1)
+
+        progress_pred = progress_pred0
 
         # cls_prob0 # [1, 300, 3]
         # bbox_pred0 # [1, 300, 12 (3x4)
@@ -454,27 +466,7 @@ class FoodDetector(object):
 
 
     def get_class_list(self, dataset_name):
-        if dataset_name == 'clipart' or dataset_name == 'pascal_voc_0712':
-            pascal_classes = np.asarray(['__background__',
-                                        'aeroplane', 'bicycle', 'bird', 'boat',
-                                        'bottle', 'bus', 'car', 'cat', 'chair',
-                                        'cow', 'diningtable', 'dog', 'horse',
-                                        'motorbike', 'person', 'pottedplant',
-                                        'sheep', 'sofa', 'train', 'tvmonitor'])
-        elif dataset_name == 'cityscape' or dataset_name == 'foggy_cityscape':
-            pascal_classes = np.asarray(['__background__',  # always index 0
-                                        'bus', 'bicycle', 'car', 'motorcycle', 'person', 'rider', 'train', 'truck'])
-        elif dataset_name == 'cityscape_car' or dataset_name == 'kitti_car':
-            pascal_classes = np.asarray(['__background__',  # always index 0
-                                        'car'])
-        elif dataset_name == 'pascal_voc_water' or dataset_name == 'water':
-            pascal_classes = np.asarray(['__background__',  # always index 0
-                                        'bicycle', 'bird', 'car', 'cat', 'dog', 'person'])
-        elif dataset_name == 'bdd100k_night' or dataset_name == 'bdd100k_daytime':
-            pascal_classes = np.asarray(["__background__",  # always index 0
-                                        "bike", "bus", "car", "motor", "person", "rider", "traffic light", "traffic sign",
-                                        "train", "truck"])
-        elif dataset_name == 'OpenImageSimpleCategory_test' or dataset_name == 'OpenImageSimpleCategory_validation':
+        if dataset_name == 'OpenImageSimpleCategory_test' or dataset_name == 'OpenImageSimpleCategory_validation':
             pascal_classes = np.asarray(['__background__',  # always index 0
                                         'food',
                                         'tableware',
@@ -520,13 +512,13 @@ class FoodDetectionRequestHandler(object):
     def process_inference_request_imgurl(self, img_url):
         # 1. Read an image and convert it to a numpy array
         response = requests.get(image_url)
-        img = Image.open(BytesIO(response.content))
+        img = Image.open(BytesIO(response.content))     # read as rgb
         pixels = np.array(img)
 
         # 2. Perform food detection
         # - result is a list of [x1,y1,x2,y2,class_id]
         # - ex) result = [(100,100,200,200,154), (200,300,200,300,12)]
-        results = self.food_detector.detect(pixels, is_rgb=False)
+        results = self.food_detector.detect(pixels, is_rgb=True)
 
         return results
 
@@ -537,7 +529,7 @@ if __name__ == '__main__':
     model_path = './output'
     handler = FoodDetectionRequestHandler(model_path)   # init
     print('FoodDetectionRequestHandler is initialized!')
-    results = handler.process_inference_request_imgurl(image_url)        # request
+    results, im2show = handler.process_inference_request_imgurl(image_url)        # request
 
     # 3. Print the result
     print("Detection Result: {}".format(json.dumps(results)))

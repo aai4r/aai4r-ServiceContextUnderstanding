@@ -4,6 +4,8 @@
 /pretrained/
 /sample_videos/
 /seq_for_video/
+/debug.png
+/dede.png
 
 # Created by https://www.toptal.com/developers/gitignore/api/linux,pycharm,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=linux,pycharm,python
