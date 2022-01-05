@@ -251,7 +251,7 @@ def _get_image_blob(im):
 
 class FoodClassifier:
     # eval_crop_type: 'TenCrop' or 'CenterCrop'
-    def __init__(self, net, dbname, eval_crop_type, ck_file_folder, pretrained=True):
+    def __init__(self, net, dbname, eval_crop_type, ck_file_folder, use_cuda=True, pretrained=True):
         self.eval_crop_type = eval_crop_type
         # load class info
         path_class_to_idx = os.path.join(ck_file_folder, 'class_info_%s.pkl' % dbname)
@@ -266,9 +266,18 @@ class FoodClassifier:
 
         # create model
         self.model = network.pret_torch_nets(model_name=net, pretrained=pretrained, class_num=len(self.class_to_idx))
-        self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type,
-                                          rescale_input_size=1.0)
-        checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)))
+        if pretrained == False:
+            self.model.model.input_size = [3, 224, 224]
+            self.model.model.input_space = 'RGB'
+            self.model.model.input_range = [0, 1]
+            self.model.model.mean = [0.485, 0.456, 0.406]
+            self.model.model.std = [0.229, 0.224, 0.225]
+        self.test_transform = utils.TransformImage(self.model.model, crop_type=eval_crop_type, rescale_input_size=1.0)
+
+        if use_cuda is False:
+            checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)),  map_location=torch.device('cpu'))
+        else:
+            checkpoint = torch.load(os.path.join(ck_file_folder, 'model_best_{}_{}.pth.tar'.format(net, dbname)))
         self.model.load_state_dict(checkpoint['state_dict'])
 
     def classify(self, image):
@@ -316,7 +325,8 @@ if __name__ == '__main__':
     # possible dbname='FoodX251', 'Food101', 'Kfood'
     # possible eval_crop_type='CenterCrop', 'TenCrop'
     food_classifier = FoodClassifier(net='senet154', dbname='Kfood', eval_crop_type='CenterCrop',
-                                     ck_file_folder=path_to_model_classifier, pretrained=False)
+                                     ck_file_folder=path_to_model_classifier,
+                                     use_cuda=args.cuda, pretrained=False)
 
     print('Called with args:')
 
