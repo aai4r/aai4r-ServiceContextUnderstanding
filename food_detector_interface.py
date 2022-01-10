@@ -593,7 +593,7 @@ class FoodDetector(object):
 
                 bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
 
-                color_index = 0
+                color_index = 1
                 im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
                                                             box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
                                                             text_bg_color=self.list_box_color[color_index], fontsize=20,
