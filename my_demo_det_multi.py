@@ -825,6 +825,7 @@ if __name__ == '__main__':
         #     class_name, x1, y1, x2, y2, food_name, food_amount = item
         #
         #     if class_name == 'food':
+        #         is_find_dish = False
         #         for dish_i, dish_item in enumerate(new_results):
         #             _, d_x1, d_y1, d_x2, d_y2, _, dish_amount = dish_item
         #
@@ -834,6 +835,11 @@ if __name__ == '__main__':
         #             if overlap_ratio > 0.9:
         #                 new_results[dish_i][5] = food_name
         #                 new_results[dish_i][6] += food_amount
+        #
+        #                 is_find_dish = True
+        #
+        #         if not is_find_dish:
+        #             new_results.append(item)
         #
         # for dish_i, dish_item in enumerate(new_results):
         #     # class_name, x1, y1, x2, y2, food_name, food_amount = item
@@ -847,7 +853,7 @@ if __name__ == '__main__':
         #
         # results = new_results
         # # dish-food converter - end
-
+        #
         # print('---- ---- ----')
         # print(results)
 

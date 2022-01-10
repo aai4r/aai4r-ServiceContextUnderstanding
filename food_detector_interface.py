@@ -558,6 +558,7 @@ class FoodDetector(object):
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
 
             if class_name == 'food':
+                is_find_dish = False
                 for dish_i, dish_item in enumerate(new_results):
                     d_x1, d_y1, d_x2, d_y2, _, _, _, dish_amount = dish_item
 
@@ -567,6 +568,11 @@ class FoodDetector(object):
                     if overlap_ratio > 0.9:
                         new_results[dish_i][6] = food_name
                         new_results[dish_i][7] += food_amount
+
+                        is_find_dish = True
+
+                if not is_find_dish:
+                    new_results.append(item)
 
         for dish_i, dish_item in enumerate(new_results):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
