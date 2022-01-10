@@ -567,6 +567,7 @@ class FoodDetector(object):
                     overlap_ratio = self.get_overlap_ratio_meal(food_bbox=[x1, y1, x2, y2],
                                                                 dish_bbox=[d_x1, d_y1, d_x2, d_y2])
                     if overlap_ratio > 0.9:
+                        new_results[dish_i][5] = food_index
                         new_results[dish_i][6] = food_name
                         new_results[dish_i][7] += food_amount
 
