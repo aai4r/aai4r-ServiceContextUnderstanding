@@ -578,6 +578,9 @@ class FoodDetector(object):
                     new_results.append(item)
         print('2.new_results:', new_results)
 
+        rep_drink = 0, 0, 0, 0, 'drink', -1, -1, -1
+        rep_food = 0, 0, 0, 0, 'food', -1, -1, -1
+
         for dish_i, dish_item in enumerate(new_results):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
             # new_results[dish_i][4] = 'food'
@@ -592,11 +595,23 @@ class FoodDetector(object):
             if new_amount < 0.0: new_amount = 0.0
             new_results[dish_i][7] = int(round(new_amount * 100))
 
-        old_results = copy.copy(results)
-        results = copy.copy(new_results)
-        # dish-food converter - end
+            if new_results[dish_i][4] == 'drink' and new_results[dish_i][7] < rep_drink[7]:
+                rep_drink = new_results[dish_i]
 
+            if new_results[dish_i][4] == 'food' and new_results[dish_i][7] < rep_food[7]:
+                rep_food = new_results[dish_i]
+
+        old_results = copy.copy(results)
+        results = []
+        results.append(rep_drink)
+        results.append(rep_food)
+        # dish-food converter - end
         print('3.results: ', results)
+
+        # drink one, food one
+
+
+
 
         # if self.save_result:
         #     for item in old_results:
