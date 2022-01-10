@@ -197,7 +197,7 @@ class FoodDetector(object):
 
         print('- models loaded from {}'.format(path))
 
-    def get_overlap_ratio_meal(food_bbox, dish_bbox):
+    def get_overlap_ratio_meal(self, food_bbox, dish_bbox):
         a_xmax = max(food_bbox[0], food_bbox[2])
         a_xmin = min(food_bbox[0], food_bbox[2])
         a_ymax = max(food_bbox[1], food_bbox[3])
