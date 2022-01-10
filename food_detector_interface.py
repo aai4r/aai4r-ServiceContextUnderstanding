@@ -618,7 +618,7 @@ class FoodDetector(object):
         if self.save_result:
             for item in results:
                 # item = [x1, y1, x2, y2, category, (food_name), (amount)]
-                if item[4] == 'food':
+                if item[4] == 'food' or item[4] == 'drink':
                     str_name = '%s (%.2f)' % (item[4], item[7])
                 else:
                     str_name = '%s' % (item[4])
