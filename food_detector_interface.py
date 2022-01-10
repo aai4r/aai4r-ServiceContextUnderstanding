@@ -547,6 +547,7 @@ class FoodDetector(object):
         # dish-food converter
         # every dish find the food and its amount
         # if food is not found, zero amount is assigned.
+        print('\n\n\nIn MealNode (results): ', results)
         new_results = []
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
@@ -554,7 +555,7 @@ class FoodDetector(object):
             if class_name == 'dish':
                 new_results.append(item)
 
-        print('\n\n\nIn MealNode (new_results): ', new_results)
+        print('\nIn MealNode (new_results): ', new_results)
 
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
