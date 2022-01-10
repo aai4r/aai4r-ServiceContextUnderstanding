@@ -526,7 +526,7 @@ class FoodDetector(object):
                         bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
                         box_y = (bbox_draw[0, 1] + bbox_draw[0, 3]) / 2.
-                        if bbox_draw[0, 4] >= self.vis_th and box_y < 400.:
+                        if bbox_draw[0, 4] >= self.vis_th and box_y < im2show.shape[0]/2:
                             # - result is a list of [x1,y1,x2,y2,class_id]
                             results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
                                             self.classes_total[j],
@@ -539,7 +539,7 @@ class FoodDetector(object):
 
                     for k in range(cls_dets.shape[0]):
                         box_y = (bbox_draw[k, 1] + bbox_draw[k, 3]) / 2.
-                        if bbox_draw[k, 4] >= self.vis_th and box_y < 400.:
+                        if bbox_draw[k, 4] >= self.vis_th and box_y < im2show.shape[0]/2:
                             results.append([int(bbox_draw[k][0]), int(bbox_draw[k][1]), int(bbox_draw[k][2]), int(bbox_draw[k][3]),
                                             self.classes_total[j],
                                             0,
