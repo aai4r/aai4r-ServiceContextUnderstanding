@@ -34,7 +34,7 @@ import network
 import pretrained_utils_v2 as utils
 import torchvision
 import pickle
-
+import copy
 import pdb
 
 # from lib.model.faster_rcnn.vgg16 import vgg16
@@ -547,15 +547,12 @@ class FoodDetector(object):
         # dish-food converter
         # every dish find the food and its amount
         # if food is not found, zero amount is assigned.
-        print('\n\n\nIn MealNode (results): ', results)
         new_results = []
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
 
             if class_name == 'dish':
                 new_results.append(item)
-
-        print('\nIn MealNode (new_results): ', new_results)
 
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
@@ -571,8 +568,6 @@ class FoodDetector(object):
                         new_results[dish_i][6] = food_name
                         new_results[dish_i][7] += food_amount
 
-        print('\nIn MealNode (new_results): ', new_results)
-
         for dish_i, dish_item in enumerate(new_results):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
             new_results[dish_i][4] = 'food'
@@ -583,10 +578,26 @@ class FoodDetector(object):
             if new_amount < 0.0: new_amount = 0.0
             new_results[dish_i][7] = int(round(new_amount * 100))
 
-        results = new_results
+        old_results = copy.copy(results)
+        results = copy.copy(new_results)
         # dish-food converter - end
 
-        print('\nIn MealNode: ', results)
+        if self.save_result:
+            for item in old_results:
+                # item = [x1, y1, x2, y2, category, (food_name), (amount)]
+                if item[4] == 'food':
+                    str_name = '%s (%.2f)' % (item[4], item[7])
+                else:
+                    str_name = '%s' % (item[0])
+
+                bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
+
+                color_index = 1
+                im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
+                                                            box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
+                                                            text_bg_color=self.list_box_color[color_index], fontsize=20,
+                                                            thresh=self.vis_th,
+                                                            draw_score=False, draw_text_out_of_box=True)
 
         if self.save_result:
             for item in results:
@@ -687,7 +698,7 @@ class FoodDetectionRequestHandler(object):
         # 2. Perform food detection
         # - result is a list of [x1,y1,x2,y2,class_id]
         # - ex) result = [(100,100,200,200,154), (200,300,200,300,12)]
-        results, vis_img = self.food_detector.detect(pixels, is_rgb=False)
+        results, vis_img = self.food_detector.detect(pixels, is_rgb=True)
 
         return results, vis_img
 
