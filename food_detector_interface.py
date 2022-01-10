@@ -588,22 +588,22 @@ class FoodDetector(object):
         results = copy.copy(new_results)
         # dish-food converter - end
 
-        # if self.save_result:
-        #     for item in old_results:
-        #         # item = [x1, y1, x2, y2, category, (food_name), (amount)]
-        #         if item[4] == 'food':
-        #             str_name = '%s (%.2f)' % (item[4], item[7])
-        #         else:
-        #             str_name = '%s' % (item[0])
-        #
-        #         bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
-        #
-        #         color_index = 0
-        #         im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
-        #                                                     box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
-        #                                                     text_bg_color=self.list_box_color[color_index], fontsize=20,
-        #                                                     thresh=self.vis_th,
-        #                                                     draw_score=False, draw_text_out_of_box=True)
+        if self.save_result:
+            for item in old_results:
+                # item = [x1, y1, x2, y2, category, (food_name), (amount)]
+                if item[4] == 'food':
+                    str_name = '%s (%.2f)' % (item[4], item[7])
+                else:
+                    str_name = '%s' % (item[0])
+
+                bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
+
+                color_index = 0
+                im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
+                                                            box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
+                                                            text_bg_color=self.list_box_color[color_index], fontsize=20,
+                                                            thresh=self.vis_th,
+                                                            draw_score=False, draw_text_out_of_box=True)
 
         if self.save_result:
             for item in results:
