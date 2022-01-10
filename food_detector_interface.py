@@ -554,6 +554,8 @@ class FoodDetector(object):
             if class_name == 'dish':
                 new_results.append(item)
 
+        print('\n\n\nIn MealNode (new_results): ', new_results)
+
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
 
@@ -568,6 +570,8 @@ class FoodDetector(object):
                         new_results[dish_i][6] = food_name
                         new_results[dish_i][7] += food_amount
 
+        print('\nIn MealNode (new_results): ', new_results)
+
         for dish_i, dish_item in enumerate(new_results):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
             new_results[dish_i][4] = 'food'
@@ -581,7 +585,7 @@ class FoodDetector(object):
         results = new_results
         # dish-food converter - end
 
-        print('In MealNode: ', results)
+        print('\nIn MealNode: ', results)
 
         if self.save_result:
             for item in results:
