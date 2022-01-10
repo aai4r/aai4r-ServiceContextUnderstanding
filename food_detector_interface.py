@@ -592,6 +592,8 @@ class FoodDetector(object):
         results = copy.copy(new_results)
         # dish-food converter - end
 
+        print('results: ', results)
+
         # if self.save_result:
         #     for item in old_results:
         #         # item = [x1, y1, x2, y2, category, (food_index), (food_name), (amount)]
@@ -615,7 +617,7 @@ class FoodDetector(object):
                 if item[4] == 'food':
                     str_name = '%s (%.2f)' % (item[4], item[7])
                 else:
-                    str_name = '%s' % (item[0])
+                    str_name = '%s' % (item[4])
 
                 bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
 
