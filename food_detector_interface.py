@@ -578,7 +578,7 @@ class FoodDetector(object):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
             # new_results[dish_i][4] = 'food'
             # new_results[dish_i][6] = 'food'
-            if new_results[dish_i][5] == 94 or new_results[dish_i][5] == 64:
+            if int(new_results[dish_i][5]) == 94 or int(new_results[dish_i][5]) == 64:
                 new_results[dish_i][4] = 'drink'
             else:
                 new_results[dish_i][4] = 'food'
