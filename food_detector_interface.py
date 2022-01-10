@@ -698,7 +698,7 @@ class FoodDetectionRequestHandler(object):
         # 2. Perform food detection
         # - result is a list of [x1,y1,x2,y2,class_id]
         # - ex) result = [(100,100,200,200,154), (200,300,200,300,12)]
-        results, vis_img = self.food_detector.detect(pixels, is_rgb=True)
+        results, vis_img = self.food_detector.detect(pixels, is_rgb=False)
 
         return results, vis_img
 
@@ -711,7 +711,7 @@ class FoodDetectionRequestHandler(object):
         # 2. Perform food detection
         # - result is a list of [x1,y1,x2,y2,class_id]
         # - ex) result = [(100,100,200,200,154), (200,300,200,300,12)]
-        results = self.food_detector.detect(pixels, is_rgb=True)
+        results = self.food_detector.detect(pixels, is_rgb=False)
 
         return results
 
