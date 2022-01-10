@@ -155,6 +155,7 @@ def parse_args():
 
     parser.add_argument('--save_result', dest='save_result', action='store_true')
     parser.add_argument('--vis', dest='vis', action='store_true')
+    parser.add_argument('--result_resized_to_800', dest='result_resized_to_800', action='store_true')
 
     parser.add_argument('--vis_th', dest='vis_th', default=0.8, type=float)
 
@@ -315,6 +316,7 @@ if __name__ == '__main__':
     args.dataset_t = ''  # assign dummy naming
     args.save_result = True
     args.use_FPN = True
+    args.result_resized_to_800 = True
 
     # args.image_dir = 'images/OpenImageSimpleCategory'
     # args.image_dir = 'images/MyFoodImages_Kfood'
@@ -626,7 +628,7 @@ if __name__ == '__main__':
         scores = cls_prob.data
         boxes = rois.data[:, :, 1:5]
 
-        estimated_output = []
+        results = []
 
         if cfg.TEST.BBOX_REG:
             # Apply bounding-box regression deltas
@@ -666,21 +668,21 @@ if __name__ == '__main__':
         det_toc = time.time()
         detect_time = det_toc - det_tic
         misc_tic = time.time()
-        if args.vis or args.save_result:
-            h, w = im.shape[:2]
-            if max(h, w) > 800:
-                if h > 800:
-                    im2show = cv2.resize(im, (int(800 / h * w), 800))
-                if w > 800:
-                    im2show = cv2.resize(im, (800, int(800 / w * h)))
 
-                h_display = im2show.shape[0]
-                im_scale = h_display / h
-            else:
-                im2show = np.copy(im)
-                im_scale = 1.0
+        h, w = im.shape[:2]
+        if max(h, w) > 800 and args.result_resized_to_800:
+            if h > 800:
+                im2show = cv2.resize(im, (int(800 / h * w), 800))
+            if w > 800:
+                im2show = cv2.resize(im, (800, int(800 / w * h)))
 
-            im2show_wobbox = copy.copy(im2show)
+            h_display = im2show.shape[0]
+            im_scale = h_display / h
+        else:
+            im2show = np.copy(im)
+            im_scale = 1.0
+
+        im2show_wobbox = copy.copy(im2show)
 
         im_pil = torchvision.transforms.ToPILImage(mode=None)(im[:,:,::-1])
         im_width, im_height = im_pil.size
@@ -756,35 +758,23 @@ if __name__ == '__main__':
                         food_class = [food_classifier.idx_to_class[topk_index[0][l].item()] for l in range(5)]
                         food_score = torch.nn.functional.softmax(topk_score[0], dim=0)
 
-                        # print(food_class, food_score)
-
-                        if args.vis or args.save_result:
-                            bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
-                            bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
-
-                            # class_name_w_food = '%s (%s: %.2f)'%(pascal_classes[j], food_class[0], food_score[0].item())
-                            class_name_w_food = '%s (%s)'%(classes_total[j], food_class[0])
-                            im2show = vis_detections_korean_ext2_wShare(im2show, class_name_w_food, bbox_draw,
-                                                                 box_color=list_box_color[j], text_color=(255, 255, 255),
-                                                                 text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
-                                                                 draw_score=False, draw_text_out_of_box=True)
-
-                            estimated_output.append([classes_total[j], int(bbox_draw[0, 0]), int(bbox_draw[0, 1]), int(bbox_draw[0, 2]), int(bbox_draw[0, 3]),
-                                                     food_class[0], bbox_draw[0, 5]])
-                else:
-                    if args.vis or args.save_result:
-                        bbox_draw = cls_dets.detach().cpu().numpy()
+                        bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
                         bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
-                        im2show = vis_detections_korean_ext2(im2show, classes_total[j], bbox_draw,
-                                                             box_color=list_box_color[j], text_color=(255, 255, 255),
-                                                             text_bg_color=list_box_color[j], fontsize=20, thresh=args.vis_th,
-                                                             draw_score=False, draw_text_out_of_box=True)
+                        if bbox_draw[0, 4] >= args.vis_th:
+                            results.append([classes_total[j],
+                                            int(bbox_draw[0, 0]), int(bbox_draw[0, 1]), int(bbox_draw[0, 2]), int(bbox_draw[0, 3]),
+                                            food_class[0], bbox_draw[0, 5]])
+                else:
+                    bbox_draw = cls_dets.detach().cpu().numpy()
+                    bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
-                        estimated_output.append(
-                            [classes_total[j], int(bbox_draw[0, 0]), int(bbox_draw[0, 1]), int(bbox_draw[0, 2]), int(bbox_draw[0, 3])])
-
-
+                    for k in range(cls_dets.shape[0]):
+                        if bbox_draw[k, 4] >= args.vis_th:
+                            results.append(
+                                [classes_total[j],
+                                 int(bbox_draw[k, 0]), int(bbox_draw[k, 1]), int(bbox_draw[k, 2]), int(bbox_draw[k, 3]),
+                                 0, 0])
 
         misc_toc = time.time()
         nms_time = misc_toc - misc_tic
@@ -798,6 +788,23 @@ if __name__ == '__main__':
         total_time = total_toc - total_tic
         frame_rate = 1 / total_time
         print('Frame rate:', frame_rate)
+
+        if args.vis or args.save_result:
+            for item in results:
+                # item = [category, x1, y1, x2, y2, (food_name), (amount)]
+                if item[0] == 'food':
+                    str_name = '%s (%s, %.2f)' % (item[0], item[5], item[6])
+                else:
+                    str_name = '%s' % (item[0])
+
+                bbox_draw = np.array([[item[1], item[2], item[3], item[4], 1.0]])
+
+                color_index = np.where(classes_total == item[0])[0][0]
+                im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
+                                                            box_color=list_box_color[color_index], text_color=(255, 255, 255),
+                                                            text_bg_color=list_box_color[color_index], fontsize=20,
+                                                            thresh=args.vis_th,
+                                                            draw_score=False, draw_text_out_of_box=True)
 
         if args.save_result:
             if args.image_dir != '':
@@ -813,7 +820,7 @@ if __name__ == '__main__':
             cv2.imwrite(result_path, im2show)
             cv2.imwrite(result_path_wobbox, im2show_wobbox)
 
-            save_file_from_list(estimated_output, result_path_txt)
+            save_file_from_list(results, result_path_txt)
 
         if args.vis:
             # im2showRGB = cv2.cvtColor(im2show, cv2.COLOR_BGR2RGB)

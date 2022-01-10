@@ -396,14 +396,16 @@ class FoodDetector(object):
                         food_class = [self.food_classifier.idx_to_class[topk_index[0][l].item()] for l in range(5)]
                         food_score = torch.nn.functional.softmax(topk_score[0], dim=0)
 
-                        # print(food_class, food_score)
-
                         if self.vis or self.save_result:
                             bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
                             bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
                             # - result is a list of [x1,y1,x2,y2,class_id]
-                            results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]), self.classes_total[j], topk_index[0][0].item(), food_class[0], bbox_draw[0][5].item()])
+                            results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+                                            self.classes_total[j],
+                                            topk_index[0][0].item(),
+                                            food_class[0],
+                                            bbox_draw[0][5].item()])
 
                             # class_name_w_food = '%s (%s: %.2f)'%(pascal_classes[j], food_class[0], food_score[0].item())
                             class_name_w_food = '%s (%s)'%(self.classes_total[j], food_class[0])
@@ -416,7 +418,11 @@ class FoodDetector(object):
                         bbox_draw = cls_dets.detach().cpu().numpy()
                         bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
-                        results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]), self.classes_total[j], -1, -1])
+                        results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+                                        self.classes_total[j],
+                                        0,
+                                        0,
+                                        0])
 
                         im2show = vis_detections_korean_ext2(im2show, self.classes_total[j], bbox_draw,
                                                              box_color=self.list_box_color[j], text_color=(255, 255, 255),
