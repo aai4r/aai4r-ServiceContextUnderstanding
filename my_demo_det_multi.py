@@ -166,6 +166,28 @@ lr = cfg.TRAIN.LEARNING_RATE
 momentum = cfg.TRAIN.MOMENTUM
 weight_decay = cfg.TRAIN.WEIGHT_DECAY
 
+def get_overlap_ratio_meal(food_bbox, dish_bbox):
+    a_xmax = max(food_bbox[0], food_bbox[2])
+    a_xmin = min(food_bbox[0], food_bbox[2])
+    a_ymax = max(food_bbox[1], food_bbox[3])
+    a_ymin = min(food_bbox[1], food_bbox[3])
+
+    b_xmax = max(dish_bbox[0], dish_bbox[2])
+    b_xmin = min(dish_bbox[0], dish_bbox[2])
+    b_ymax = max(dish_bbox[1], dish_bbox[3])
+    b_ymin = min(dish_bbox[1], dish_bbox[3])
+
+    # a: food, b: dish
+    dx = min(a_xmax, b_xmax) - max(a_xmin, b_xmin)
+    dy = min(a_ymax, b_ymax) - max(a_ymin, b_ymin)
+
+    # dx and dy is width and height of IoU
+
+    if (dx >= 0) and (dy >= 0):
+        return float(dx * dy) / float(
+            (a_xmax - a_xmin) * (a_ymax - a_ymin))
+    else:
+        return 0.
 
 def get_class_list(dataset_name):
     if dataset_name == 'clipart' or dataset_name == 'pascal_voc_0712':
@@ -789,6 +811,46 @@ if __name__ == '__main__':
         frame_rate = 1 / total_time
         print('Frame rate:', frame_rate)
 
+        # # dish-food converter
+        # # every dish find the food and its amount
+        # # if food is not found, zero amount is assigned.
+        # new_results = []
+        # for item in results:
+        #     class_name, x1, y1, x2, y2, food_name, food_amount = item
+        #
+        #     if class_name == 'dish':
+        #         new_results.append(item)
+        #
+        # for item in results:
+        #     class_name, x1, y1, x2, y2, food_name, food_amount = item
+        #
+        #     if class_name == 'food':
+        #         for dish_i, dish_item in enumerate(new_results):
+        #             _, d_x1, d_y1, d_x2, d_y2, _, dish_amount = dish_item
+        #
+        #             # check overlap
+        #             overlap_ratio = get_overlap_ratio_meal(food_bbox=[x1, y1, x2, y2],
+        #                                                    dish_bbox=[d_x1, d_y1, d_x2, d_y2])
+        #             if overlap_ratio > 0.9:
+        #                 new_results[dish_i][5] = food_name
+        #                 new_results[dish_i][6] += food_amount
+        #
+        # for dish_i, dish_item in enumerate(new_results):
+        #     # class_name, x1, y1, x2, y2, food_name, food_amount = item
+        #     new_results[dish_i][0] = 'food'
+        #     new_results[dish_i][5] = 'food'
+        #
+        #     new_amount = new_results[dish_i][6]
+        #     if new_amount > 1.0: new_amount = 1.0
+        #     if new_amount < 0.0: new_amount = 0.0
+        #     new_results[dish_i][6] = int(round(new_amount * 100))
+        #
+        # results = new_results
+        # # dish-food converter - end
+
+        # print('---- ---- ----')
+        # print(results)
+
         if args.vis or args.save_result:
             for item in results:
                 # item = [category, x1, y1, x2, y2, (food_name), (amount)]
@@ -835,3 +897,5 @@ if __name__ == '__main__':
         cv2.destroyAllWindows()
 
     print('Results are stored in %s' % pathOutputSaveImages)
+
+

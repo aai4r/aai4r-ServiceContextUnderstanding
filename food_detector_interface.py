@@ -197,6 +197,28 @@ class FoodDetector(object):
 
         print('- models loaded from {}'.format(path))
 
+    def get_overlap_ratio_meal(food_bbox, dish_bbox):
+        a_xmax = max(food_bbox[0], food_bbox[2])
+        a_xmin = min(food_bbox[0], food_bbox[2])
+        a_ymax = max(food_bbox[1], food_bbox[3])
+        a_ymin = min(food_bbox[1], food_bbox[3])
+
+        b_xmax = max(dish_bbox[0], dish_bbox[2])
+        b_xmin = min(dish_bbox[0], dish_bbox[2])
+        b_ymax = max(dish_bbox[1], dish_bbox[3])
+        b_ymin = min(dish_bbox[1], dish_bbox[3])
+
+        # a: food, b: dish
+        dx = min(a_xmax, b_xmax) - max(a_xmin, b_xmin)
+        dy = min(a_ymax, b_ymax) - max(a_ymin, b_ymin)
+
+        # dx and dy is width and height of IoU
+
+        if (dx >= 0) and (dy >= 0):
+            return float(dx * dy) / float(
+                (a_xmax - a_xmin) * (a_ymax - a_ymin))
+        else:
+            return 0.
 
     def detect(self, cv_img, is_rgb=True):
         # - image shape is (height,width,no_channels)
@@ -325,6 +347,110 @@ class FoodDetector(object):
         im_pil = torchvision.transforms.ToPILImage(mode=None)(im[:,:,::-1])
         im_width, im_height = im_pil.size
 
+        # for j in range(1, len(self.classes_total)):
+        #     inds = torch.nonzero(scores[:, j] > self.thresh).view(-1)    # find index with scores > threshold in j-class
+        #     # if there is det
+        #     if inds.numel() > 0:
+        #         cls_scores = scores[:, j][inds]
+        #         if self.use_share_regress:
+        #             share_pred_inds = share_pred[inds]
+        #
+        #         _, order = torch.sort(cls_scores, 0, True)
+        #         if self.class_agnostic:
+        #             cls_boxes = pred_boxes[inds, :]
+        #         else:
+        #             cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
+        #
+        #         if self.use_share_regress:
+        #             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1), share_pred_inds.unsqueeze(1)), 1)
+        #         else:
+        #             cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
+        #         # cls_dets = torch.cat((cls_boxes, cls_scores), 1)
+        #         cls_dets = cls_dets[order]
+        #         keep = nms(cls_boxes[order, :], cls_scores[order], cfg.TEST.NMS)
+        #         cls_dets = cls_dets[keep.view(-1).long()]
+        #
+        #         # im: original image, (768, 1024, 3)
+        #         # im_data: blob image, (1, 3, 600, 800)
+        #         # cls_dets: x1, y1, x2, y2, score
+        #
+        #         # crop and feed to classifier
+        #         # im_pil.save(osp.join(pathOutputSaveImages, 'debug_input.png'))
+        #         if self.classes_total[j] == 'food':
+        #             for k in range(cls_dets.shape[0]):
+        #                 crop_margin_ratio = 0.1
+        #
+        #                 x1 = int(cls_dets[k, 0])
+        #                 y1 = int(cls_dets[k, 1])
+        #                 x2 = int(cls_dets[k, 2])
+        #                 y2 = int(cls_dets[k, 3])
+        #
+        #                 crop_h_margin = (y2 - y1) * crop_margin_ratio/2.
+        #                 crop_w_margin = (x2 - x1) * crop_margin_ratio/2.
+        #
+        #                 x1 = x1 - crop_w_margin
+        #                 y1 = y1 - crop_h_margin
+        #                 x2 = x2 + crop_w_margin
+        #                 y2 = y2 + crop_h_margin
+        #
+        #                 if x1 < 0: x1 = 0
+        #                 if y1 < 0: y1 = 0
+        #                 if x2 > im_width-1: x2 = im_width-1
+        #                 if y2 > im_height-1: y2 = im_height-1
+        #
+        #                 im_crop = im_pil.crop((x1, y1, x2, y2))
+        #                 # im_crop.save(osp.join(pathOutputSaveImages, 'debug_crop.png'))
+        #
+        #                 im_crop = self.food_classifier.test_transform(im_crop)
+        #                 im_crop = torch.unsqueeze(im_crop, dim=0)
+        #
+        #                 if self.food_classifier.eval_crop_type == 'TenCrop':
+        #                     bs, ncrops, c, h, w = im_crop.size()
+        #                     im_crop = im_crop.view(-1, c, h, w)
+        #
+        #                 food_output = self.food_classifier.classify(im_crop)
+        #
+        #                 if self.food_classifier.eval_crop_type == 'TenCrop':
+        #                     food_output = food_output.view(bs, ncrops, -1).mean(1)  # avg over crops
+        #
+        #                 topk_score, topk_index = torch.topk(food_output, 5, dim=1)
+        #
+        #                 food_class = [self.food_classifier.idx_to_class[topk_index[0][l].item()] for l in range(5)]
+        #                 food_score = torch.nn.functional.softmax(topk_score[0], dim=0)
+        #
+        #                 if self.vis or self.save_result:
+        #                     bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
+        #                     bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+        #
+        #                     # - result is a list of [x1,y1,x2,y2,class_id]
+        #                     results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+        #                                     self.classes_total[j],
+        #                                     topk_index[0][0].item(),
+        #                                     food_class[0],
+        #                                     bbox_draw[0][5].item()])
+        #
+        #                     # class_name_w_food = '%s (%s: %.2f)'%(pascal_classes[j], food_class[0], food_score[0].item())
+        #                     class_name_w_food = '%s (%s)'%(self.classes_total[j], food_class[0])
+        #                     im2show = vis_detections_korean_ext2_wShare(im2show, class_name_w_food, bbox_draw,
+        #                                                          box_color=self.list_box_color[j], text_color=(255, 255, 255),
+        #                                                          text_bg_color=self.list_box_color[j], fontsize=20, thresh=self.vis_th,
+        #                                                          draw_score=False, draw_text_out_of_box=True)
+        #         else:
+        #             if self.vis or self.save_result:
+        #                 bbox_draw = cls_dets.detach().cpu().numpy()
+        #                 bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+        #
+        #                 results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+        #                                 self.classes_total[j],
+        #                                 0,
+        #                                 0,
+        #                                 0])
+        #
+        #                 im2show = vis_detections_korean_ext2(im2show, self.classes_total[j], bbox_draw,
+        #                                                      box_color=self.list_box_color[j], text_color=(255, 255, 255),
+        #                                                      text_bg_color=self.list_box_color[j], fontsize=20, thresh=self.vis_th,
+        #                                                      draw_score=False, draw_text_out_of_box=True)
+
         for j in range(1, len(self.classes_total)):
             inds = torch.nonzero(scores[:, j] > self.thresh).view(-1)    # find index with scores > threshold in j-class
             # if there is det
@@ -396,38 +522,82 @@ class FoodDetector(object):
                         food_class = [self.food_classifier.idx_to_class[topk_index[0][l].item()] for l in range(5)]
                         food_score = torch.nn.functional.softmax(topk_score[0], dim=0)
 
-                        if self.vis or self.save_result:
-                            bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
-                            bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+                        bbox_draw = cls_dets.detach().cpu().numpy()[k:k + 1, :]
+                        bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
+                        if bbox_draw[0, 4] >= self.vis_th:
                             # - result is a list of [x1,y1,x2,y2,class_id]
                             results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
                                             self.classes_total[j],
-                                            topk_index[0][0].item(),
+                                            topk_index[0][0].item(),        # food_class index
                                             food_class[0],
                                             bbox_draw[0][5].item()])
-
-                            # class_name_w_food = '%s (%s: %.2f)'%(pascal_classes[j], food_class[0], food_score[0].item())
-                            class_name_w_food = '%s (%s)'%(self.classes_total[j], food_class[0])
-                            im2show = vis_detections_korean_ext2_wShare(im2show, class_name_w_food, bbox_draw,
-                                                                 box_color=self.list_box_color[j], text_color=(255, 255, 255),
-                                                                 text_bg_color=self.list_box_color[j], fontsize=20, thresh=self.vis_th,
-                                                                 draw_score=False, draw_text_out_of_box=True)
                 else:
-                    if self.vis or self.save_result:
-                        bbox_draw = cls_dets.detach().cpu().numpy()
-                        bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
+                    bbox_draw = cls_dets.detach().cpu().numpy()
+                    bbox_draw[:, :4] = bbox_draw[:, :4] * im_scale
 
-                        results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
-                                        self.classes_total[j],
-                                        0,
-                                        0,
-                                        0])
+                    for k in range(cls_dets.shape[0]):
+                        if bbox_draw[k, 4] >= self.vis_th:
+                            results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+                                            self.classes_total[j],
+                                            0,
+                                            0,
+                                            0])
 
-                        im2show = vis_detections_korean_ext2(im2show, self.classes_total[j], bbox_draw,
-                                                             box_color=self.list_box_color[j], text_color=(255, 255, 255),
-                                                             text_bg_color=self.list_box_color[j], fontsize=20, thresh=self.vis_th,
-                                                             draw_score=False, draw_text_out_of_box=True)
+        # dish-food converter
+        # every dish find the food and its amount
+        # if food is not found, zero amount is assigned.
+        new_results = []
+        for item in results:
+            x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
+
+            if class_name == 'dish':
+                new_results.append(item)
+
+        for item in results:
+            x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
+
+            if class_name == 'food':
+                for dish_i, dish_item in enumerate(new_results):
+                    d_x1, d_y1, d_x2, d_y2, _, _, _, dish_amount = dish_item
+
+                    # check overlap
+                    overlap_ratio = self.get_overlap_ratio_meal(food_bbox=[x1, y1, x2, y2],
+                                                                dish_bbox=[d_x1, d_y1, d_x2, d_y2])
+                    if overlap_ratio > 0.9:
+                        new_results[dish_i][6] = food_name
+                        new_results[dish_i][7] += food_amount
+
+        for dish_i, dish_item in enumerate(new_results):
+            # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
+            new_results[dish_i][4] = 'food'
+            new_results[dish_i][6] = 'food'
+
+            new_amount = new_results[dish_i][7]
+            if new_amount > 1.0: new_amount = 1.0
+            if new_amount < 0.0: new_amount = 0.0
+            new_results[dish_i][7] = int(round(new_amount * 100))
+
+        results = new_results
+        # dish-food converter - end
+
+
+        if self.save_result:
+            for item in results:
+                # item = [category, x1, y1, x2, y2, (food_name), (amount)]
+                if item[4] == 'food':
+                    str_name = '%s (%.2f)' % (item[4], item[7])
+                else:
+                    str_name = '%s' % (item[0])
+
+                bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
+
+                color_index = np.where(self.classes_total == item[0])[0][0]
+                im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
+                                                            box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
+                                                            text_bg_color=self.list_box_color[color_index], fontsize=20,
+                                                            thresh=self.vis_th,
+                                                            draw_score=False, draw_text_out_of_box=True)
 
         if self.vis:
             cv2.imwrite('debug.png', im2show)
