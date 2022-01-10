@@ -581,10 +581,11 @@ class FoodDetector(object):
         results = new_results
         # dish-food converter - end
 
+        print('In MealNode: ', results)
 
         if self.save_result:
             for item in results:
-                # item = [category, x1, y1, x2, y2, (food_name), (amount)]
+                # item = [x1, y1, x2, y2, category, (food_name), (amount)]
                 if item[4] == 'food':
                     str_name = '%s (%.2f)' % (item[4], item[7])
                 else:
@@ -592,7 +593,7 @@ class FoodDetector(object):
 
                 bbox_draw = np.array([[item[0], item[1], item[2], item[3], 1.0]])
 
-                color_index = np.where(self.classes_total == item[0])[0][0]
+                color_index = 0
                 im2show = vis_detections_korean_ext2(im2show, str_name, bbox_draw,
                                                             box_color=self.list_box_color[color_index], text_color=(255, 255, 255),
                                                             text_bg_color=self.list_box_color[color_index], fontsize=20,
