@@ -592,7 +592,7 @@ class FoodDetector(object):
             for item in old_results:
                 # item = [x1, y1, x2, y2, category, (food_name), (amount)]
                 if item[4] == 'food':
-                    str_name = '%s (%.2f)' % (item[4], item[7])
+                    str_name = '%s (%s, %.2f)' % (item[4], item[5], item[7])
                 else:
                     str_name = '%s' % (item[0])
 
