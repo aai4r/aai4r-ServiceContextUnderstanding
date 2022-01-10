@@ -538,7 +538,7 @@ class FoodDetector(object):
 
                     for k in range(cls_dets.shape[0]):
                         if bbox_draw[k, 4] >= self.vis_th:
-                            results.append([int(bbox_draw[0][0]), int(bbox_draw[0][1]), int(bbox_draw[0][2]), int(bbox_draw[0][3]),
+                            results.append([int(bbox_draw[k][0]), int(bbox_draw[k][1]), int(bbox_draw[k][2]), int(bbox_draw[k][3]),
                                             self.classes_total[j],
                                             0,
                                             0,
@@ -547,6 +547,7 @@ class FoodDetector(object):
         # dish-food converter
         # every dish find the food and its amount
         # if food is not found, zero amount is assigned.
+        print('0.results:', results)
         new_results = []
         for item in results:
             x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
@@ -581,7 +582,7 @@ class FoodDetector(object):
             # x1, y1, x2, y2, class_name, food_index, food_name, food_amount = item
             # new_results[dish_i][4] = 'food'
             # new_results[dish_i][6] = 'food'
-            if new_results[dish_i][5] == '94' or new_results[dish_i][5] == '64':
+            if new_results[dish_i][5] == 94 or new_results[dish_i][5] == 64:
                 new_results[dish_i][4] = 'drink'
             else:
                 new_results[dish_i][4] = 'food'
