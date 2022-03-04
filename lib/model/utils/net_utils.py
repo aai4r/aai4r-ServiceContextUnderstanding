@@ -399,7 +399,10 @@ def vis_detections_korean_ext(im, class_name, dets, box_color=(0, 0, 204), text_
 # draw background of the text
 def vis_detections_korean_ext2(im, class_name, dets, box_color=(0, 0, 204), text_color=(0, 0, 0), text_bg_color=(0, 0, 180), fontsize=20, thresh=0.8, draw_score=True, draw_text_out_of_box=True):
     """Visual debugging of detections."""
-    font = ImageFont.truetype('NanumGothic.ttf', fontsize)
+    try:
+        font = ImageFont.truetype('NanumGothic.ttf', fontsize)
+    except:
+        font = ImageFont.truetype('NanumGothic-Regular.ttf', fontsize)    
     im_pil = Image.fromarray(im)
     im_draw = ImageDraw.Draw(im_pil)
 
