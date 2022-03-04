@@ -15,6 +15,13 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
 * pytorchvision 0.4.1
 
 ### Installation
+0. Setup the environment
+    ```bash
+    conda create -n py36torch13 python=3.6 
+    conda activate py36torch13
+    conda install pytorch=1.3.0 torchvision=0.4.1 -c pytorch
+    ```
+
 1. Clone this repository.
     ```bash
     git clone https://github.com/aai4r/aai4r-ServiceContextUnderstanding
@@ -27,6 +34,8 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
     pip install opencv-python
     pip install numpy
     pip install imageio
+    pip install easydict
+    pip install pyyaml
     ```
 
 3. Make output folder and download [all weight files (detection and classification)](https://drive.google.com/drive/folders/1rT2DYaiywGt8gqdl2YGnd6RLP1rxZV9I?usp=sharing) and move them to output folder.
@@ -42,7 +51,7 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
     │   └── model_best.pth.tar
     ```
  
-4. Download [nanumgothic.tff](https://fonts.google.com/download?family=Nanum%20Gothic) and Install
+4. Download [nanumgothic.ttf](https://fonts.google.com/download?family=Nanum%20Gothic) and Install
    ```
    Copyright (c) 2010, NAVER Corporation (https://www.navercorp.com/),
 
