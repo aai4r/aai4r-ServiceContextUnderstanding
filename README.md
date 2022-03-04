@@ -51,7 +51,7 @@ We borrowed some code from [jwyang/faster-rcnn.pytorch](https://github.com/jwyan
     │   └── model_best.pth.tar
     ```
  
-4. Download [nanumgothic.ttf](https://fonts.google.com/download?family=Nanum%20Gothic) and Install
+4. Download [nanumgothic.ttf](https://fonts.google.com/download?family=Nanum%20Gothic) and install (unzip, mv the folder to /usr/share/fonts/, then fc-cache -f -v)
    ```
    Copyright (c) 2010, NAVER Corporation (https://www.navercorp.com/),
 
